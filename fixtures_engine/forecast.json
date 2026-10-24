@@ -387,5 +387,10 @@
       "ref": "O1",
       "text": "Payroll Rs 6,00,000 due monthly on 1st"
     }
-  ]
+  ],
+  "meta": {
+    "delay_model_used": "empirical",
+    "n_sims": 500,
+    "seed": 42
+  }
 }
