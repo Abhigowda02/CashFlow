@@ -1,0 +1,90 @@
+[
+  {
+    "id": "A3",
+    "title": "Discount INV-057 (Karnataka State Handloom Development Corp)",
+    "type": "invoice_discounting",
+    "cost": 3847,
+    "risk": "low",
+    "note": "100% advance on Rs 4,50,000 in ~3 days via invoice discounting at 12% p.a. (Rs 3,847 fee for 26 days).",
+    "shortage_prob_after": 0.28,
+    "first_shortage_date_after": "2027-01-01",
+    "runway_days_gained": 51
+  },
+  {
+    "id": "A2",
+    "title": "Offer 2% early payment discount on top 3 open invoices",
+    "type": "early_discount",
+    "cost": 23800,
+    "risk": "low",
+    "note": "Offer 2% prompt settlement discount (Rs 23,800) across 3 largest receivables to accelerate cash by ~20 days.",
+    "shortage_prob_after": 0.28,
+    "first_shortage_date_after": "2027-01-01",
+    "runway_days_gained": 51
+  },
+  {
+    "id": "A7",
+    "title": "Draw down Rs 2,00,000 overdraft facility",
+    "type": "overdraft",
+    "cost": 2301,
+    "risk": "medium",
+    "note": "Draw 30-day overdraft of Rs 2,00,000 at 14% p.a. (Rs 2,301 interest) to bridge payroll gap.",
+    "shortage_prob_after": 0.38,
+    "first_shortage_date_after": "2027-01-01",
+    "runway_days_gained": 51
+  },
+  {
+    "id": "A1",
+    "title": "Chase INV-057 (Karnataka State Handloom Development Corp)",
+    "type": "chase_invoice",
+    "cost": 0,
+    "risk": "low",
+    "note": "Follow up on largest overdue invoice (Rs 4,50,000) to accelerate collection by ~15 days.",
+    "shortage_prob_after": 0.39,
+    "first_shortage_date_after": "2026-12-05",
+    "runway_days_gained": 24
+  },
+  {
+    "id": "A4",
+    "title": "Delay bill B1 (Sri Laxmi Threads) by 16 days",
+    "type": "delay_supplier",
+    "cost": 0,
+    "risk": "high",
+    "note": "MSME supplier: Pushing Rs 85,000 by 16 days (total > 45 days from bill date) triggers Section 43B(h) tax-deduction deferral and statutory compound interest at 3x RBI bank rate.",
+    "shortage_prob_after": 0.51,
+    "first_shortage_date_after": "2026-11-20",
+    "runway_days_gained": 9
+  },
+  {
+    "id": "A5",
+    "title": "Delay bill B2 (Venkateshwara Dyes & Fabrics) by 16 days",
+    "type": "delay_supplier",
+    "cost": 0,
+    "risk": "high",
+    "note": "MSME supplier: Pushing Rs 1,40,000 by 16 days (total > 45 days from bill date) triggers Section 43B(h) tax-deduction deferral and statutory compound interest at 3x RBI bank rate.",
+    "shortage_prob_after": 0.52,
+    "first_shortage_date_after": "2026-11-05",
+    "runway_days_gained": 0
+  },
+  {
+    "id": "A8",
+    "title": "Renegotiate Rent obligation (20% reduction)",
+    "type": "cut_expense",
+    "cost": 0,
+    "risk": "low",
+    "note": "Reduce monthly rent by 20% from Rs 80,000 to Rs 64,000 (saving Rs 16,000/month).",
+    "shortage_prob_after": 0.64,
+    "first_shortage_date_after": "2026-11-11",
+    "runway_days_gained": 0
+  },
+  {
+    "id": "A6",
+    "title": "Delay bill B3 (Apex Packaging Solutions) by 15 days",
+    "type": "delay_supplier",
+    "cost": 0,
+    "risk": "low",
+    "note": "Commercial non-MSME supplier: Negotiate standard 15-day payment extension on Rs 75,000.",
+    "shortage_prob_after": 0.77,
+    "first_shortage_date_after": "2026-11-11",
+    "runway_days_gained": 0
+  }
+]
