@@ -1,0 +1,23 @@
+{
+  "name": "Market Shock: 20% sales drop, corporate delay, unexpected machine repair",
+  "changes": [
+    {
+      "type": "delay_customer",
+      "customer_id": "C2",
+      "extra_days": 30
+    },
+    {
+      "type": "sales_change",
+      "pct": -20
+    },
+    {
+      "type": "extra_expense",
+      "amount": 200000,
+      "date": "2026-11-10"
+    },
+    {
+      "type": "supplier_terms",
+      "extra_days": 15
+    }
+  ]
+}
