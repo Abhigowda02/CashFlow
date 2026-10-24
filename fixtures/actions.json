@@ -1,0 +1,57 @@
+[
+  {
+    "id": "A4",
+    "title": "Delay payment to Sri Lakshmi Fabrics (MSME)",
+    "type": "delay_supplier",
+    "cost": 0,
+    "risk": "high",
+    "note": "High risk: delaying this MSME bill beyond 45 days can trigger Section 43B(h), deferring the buyer's tax deduction until actual payment. Obtain written agreement and confirm the statutory deadline before acting.",
+    "shortage_prob_after": 0.31,
+    "first_shortage_date_after": "2026-11-25",
+    "runway_days_gained": 12
+  },
+  {
+    "id": "A5",
+    "title": "Arrange a short-term overdraft",
+    "type": "overdraft",
+    "cost": 18000,
+    "risk": "medium",
+    "note": "Request a temporary Rs 3,00,000 working-capital limit and confirm interest and renewal terms.",
+    "shortage_prob_after": 0.34,
+    "first_shortage_date_after": "2026-11-28",
+    "runway_days_gained": 15
+  },
+  {
+    "id": "A1",
+    "title": "Chase INV-002 (Sharma Textiles)",
+    "type": "chase_invoice",
+    "cost": 0,
+    "risk": "low",
+    "note": "Call the accounts team and agree a dated payment plan for this chronically late balance.",
+    "shortage_prob_after": 0.39,
+    "first_shortage_date_after": "2026-11-20",
+    "runway_days_gained": 7
+  },
+  {
+    "id": "A2",
+    "title": "Offer an early-payment discount on INV-005",
+    "type": "early_discount",
+    "cost": 8250,
+    "risk": "low",
+    "note": "Offer Kaveri Retail Group a 3% discount for payment within seven days.",
+    "shortage_prob_after": 0.45,
+    "first_shortage_date_after": "2026-11-18",
+    "runway_days_gained": 5
+  },
+  {
+    "id": "A3",
+    "title": "Use invoice discounting for INV-007",
+    "type": "invoice_discounting",
+    "cost": 13200,
+    "risk": "medium",
+    "note": "Advance funds against Deccan Apparel Works' approved invoice; compare fees before accepting.",
+    "shortage_prob_after": 0.48,
+    "first_shortage_date_after": "2026-11-17",
+    "runway_days_gained": 4
+  }
+]

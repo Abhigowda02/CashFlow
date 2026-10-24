@@ -1,0 +1,41 @@
+{
+  "name": "Namma Stitch Garment Supplies",
+  "as_of": "2026-10-24",
+  "opening_cash": 450000,
+  "safety_floor": 100000,
+  "customers": [
+    {"id": "C1", "name": "Bengaluru City Municipal Corporation", "segment": "government"},
+    {"id": "C2", "name": "Sharma Textiles", "segment": "corporate"},
+    {"id": "C3", "name": "Mysuru Uniform House", "segment": "small"},
+    {"id": "C4", "name": "Kaveri Retail Group", "segment": "corporate"},
+    {"id": "C5", "name": "Greenfield Public School", "segment": "small"},
+    {"id": "C6", "name": "Deccan Apparel Works", "segment": "corporate"},
+    {"id": "C7", "name": "Peenya Workwear Co-op", "segment": "small"},
+    {"id": "C8", "name": "Sudarshan Garments", "segment": "corporate"}
+  ],
+  "invoices": [
+    {"id": "INV-001", "customer_id": "C1", "amount": 420000, "issue_date": "2026-08-01", "due_date": "2026-08-31", "status": "open", "paid_date": null},
+    {"id": "INV-002", "customer_id": "C2", "amount": 310000, "issue_date": "2026-07-15", "due_date": "2026-08-14", "status": "open", "paid_date": null},
+    {"id": "INV-003", "customer_id": "C2", "amount": 185000, "issue_date": "2026-09-05", "due_date": "2026-10-05", "status": "open", "paid_date": null},
+    {"id": "INV-004", "customer_id": "C3", "amount": 160000, "issue_date": "2026-09-10", "due_date": "2026-10-10", "status": "open", "paid_date": null},
+    {"id": "INV-005", "customer_id": "C4", "amount": 275000, "issue_date": "2026-10-01", "due_date": "2026-10-31", "status": "open", "paid_date": null},
+    {"id": "INV-006", "customer_id": "C5", "amount": 95000, "issue_date": "2026-10-03", "due_date": "2026-11-02", "status": "open", "paid_date": null},
+    {"id": "INV-007", "customer_id": "C6", "amount": 220000, "issue_date": "2026-10-08", "due_date": "2026-11-07", "status": "open", "paid_date": null},
+    {"id": "INV-008", "customer_id": "C7", "amount": 125000, "issue_date": "2026-10-12", "due_date": "2026-11-11", "status": "open", "paid_date": null},
+    {"id": "INV-009", "customer_id": "C8", "amount": 185000, "issue_date": "2026-09-20", "due_date": "2026-10-20", "status": "open", "paid_date": null},
+    {"id": "INV-010", "customer_id": "C3", "amount": 140000, "issue_date": "2026-08-05", "due_date": "2026-09-04", "status": "paid", "paid_date": "2026-09-12"},
+    {"id": "INV-011", "customer_id": "C2", "amount": 240000, "issue_date": "2026-06-01", "due_date": "2026-07-01", "status": "paid", "paid_date": "2026-09-18"},
+    {"id": "INV-012", "customer_id": "C4", "amount": 195000, "issue_date": "2026-07-20", "due_date": "2026-08-19", "status": "paid", "paid_date": "2026-09-25"}
+  ],
+  "supplier_bills": [
+    {"id": "B1", "supplier": "Sri Lakshmi Fabrics (MSME)", "amount": 90000, "due_date": "2026-11-05", "is_msme": true, "status": "open"},
+    {"id": "B2", "supplier": "Peenya Buttons & Trims (MSME)", "amount": 115000, "due_date": "2026-11-12", "is_msme": true, "status": "open"}
+  ],
+  "obligations": [
+    {"id": "O1", "name": "Monthly payroll", "amount": 600000, "frequency": "monthly", "day_of_month": 1},
+    {"id": "O2", "name": "Workshop rent", "amount": 80000, "frequency": "monthly", "day_of_month": 5},
+    {"id": "O3", "name": "Machinery EMI", "amount": 60000, "frequency": "monthly", "day_of_month": 10},
+    {"id": "O4", "name": "GST payment", "amount": 120000, "frequency": "monthly", "day_of_month": 20}
+  ],
+  "sales_plan": {"monthly_amount": 1400000, "terms_days": 30, "monthly_noise_pct": 15}
+}

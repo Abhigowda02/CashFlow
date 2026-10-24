@@ -1,0 +1,8 @@
+{
+  "name": "Worse case: delayed collections and softer sales",
+  "changes": [
+    {"type": "delay_customer", "customer_id": "C2", "extra_days": 30},
+    {"type": "sales_change", "pct": -15},
+    {"type": "extra_expense", "amount": 150000, "date": "2026-11-10"}
+  ]
+}
