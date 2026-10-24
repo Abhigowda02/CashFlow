@@ -6,3 +6,5 @@ venv/
 .env
 dist/
 .DS_Store
+data/
+ml/artifacts/
