@@ -7,13 +7,42 @@ from pathlib import Path
 
 import pandas as pd
 from sqlalchemy import delete, insert, select, update
-from . import database as db
+from datetime import date
+from . import clock, database as db
+from .gap import simulate_gap_cash
 
 def load_business(business_id):
     with db.engine().connect() as connection:
         row = connection.execute(select(db.workspaces.c.payload).where(
             db.workspaces.c.id == business_id, db.workspaces.c.onboarded.is_(True))).first()
-    return json.loads(row[0]) if row else None
+    if not row:
+        return None
+    business = json.loads(row[0])
+    # Migration for existing workspaces: if as_of exists in payload, set cash_updated_on = old as_of
+    migrated = False
+    if 'cash_updated_on' not in business:
+        business['cash_updated_on'] = business.get('as_of') or clock.today_ist().isoformat()
+        migrated = True
+    if 'cash_balance' not in business:
+        business['cash_balance'] = business.get('opening_cash', 0)
+        migrated = True
+    if migrated:
+        with db.transaction() as conn:
+            conn.execute(update(db.workspaces).where(db.workspaces.c.id == business_id).values(payload=json.dumps(business)))
+    return business
+
+
+def update_cash_balance(business_id, cash_balance: int, cash_updated_on: str):
+    with db.transaction() as connection:
+        row = connection.execute(select(db.workspaces.c.payload).where(
+            db.workspaces.c.id == business_id).with_for_update()).one()
+        current = json.loads(row[0])
+        current['cash_balance'] = cash_balance
+        current['cash_updated_on'] = cash_updated_on
+        current['opening_cash'] = cash_balance
+        connection.execute(update(db.workspaces).where(db.workspaces.c.id == business_id)
+                           .values(payload=json.dumps(current)))
+    return current
 
 
 def save_business(business, business_id):
@@ -120,6 +149,7 @@ def import_invoices(filename, content, name, as_of, opening_cash, safety_floor, 
                              issue_date=issue, due_date=due, paid_date=paid_date if settled else None,
                              status='paid' if settled else 'open'))
     business = dict(name=name, as_of=as_of, opening_cash=opening_cash, safety_floor=safety_floor,
+                    cash_balance=opening_cash, cash_updated_on=as_of,
                     customers=list(customers.values()), invoices=invoices, supplier_bills=[], obligations=[],
                     sales_plan=dict(monthly_amount=0, terms_days=30, monthly_noise_pct=0),
                     data_source='imported', currency='INR', amount_unit_verified=True,
@@ -215,6 +245,21 @@ def forecast_business(business, business_id=None):
     business = copy.deepcopy(business)
     if business_id is not None:
         business['_model_scope'] = business_id
+
+    # Recalculate as_of = today_ist() on every request
+    today = clock.today_ist()
+    business['as_of'] = today.isoformat()
+
+    cash_updated_on_str = business.get('cash_updated_on') or business.get('as_of') or today.isoformat()
+    try:
+        cash_updated_on = date.fromisoformat(cash_updated_on_str.split('T')[0])
+    except (ValueError, TypeError):
+        cash_updated_on = today
+
+    adjusted_cash, gap_summary = simulate_gap_cash(business, cash_updated_on, today)
+    business['opening_cash'] = adjusted_cash
+    business['_gap_summary'] = gap_summary
+
     for invoice in business['invoices']:
         if invoice['status'] == 'open':
             invoice['model_amount'] = invoice['amount']
@@ -246,10 +291,93 @@ def record_receipt(business, invoice_id, amount, date, receipt_id, business_id):
                 db.receipts.c.business_id == business_id, db.receipts.c.invoice_id == invoice_id)).scalars().all()
             invoice.update(status='paid', paid_date=max([date, *earlier]))
         current['opening_cash'] += amount
+        current['cash_balance'] = current.get('cash_balance', current['opening_cash'] - amount) + amount
+        current['cash_updated_on'] = max(current.get('cash_updated_on', date), date)
         connection.execute(insert(db.receipts).values(business_id=business_id, id=receipt_id,
                            invoice_id=invoice_id, amount=amount, date=date))
         connection.execute(update(db.workspaces).where(db.workspaces.c.id == business_id).values(payload=json.dumps(current)))
         return current
+
+
+def commit_reviewed_invoices(rows, mode, business_id, keep_duplicates=False):
+    """Persist owner-reviewed invoice proposals and return a small JSON summary.
+
+    Input rows are plain dictionaries from an import review; output is a count.
+    All access is scoped to ``business_id`` and no parsing or guessing occurs here.
+    """
+    with db.transaction() as connection:
+        row = connection.execute(select(db.workspaces.c.payload).where(
+            db.workspaces.c.id == business_id, db.workspaces.c.onboarded.is_(True)).with_for_update()).first()
+        if row is None:
+            raise ValueError('Complete business setup first')
+        business = json.loads(row[0])
+        incoming, ids = [], set()
+        existing_ids = {invoice['id'] for invoice in business.get('invoices', [])}
+        for draft in rows:
+            flags = draft.get('flags') or []
+            iid, customer = str(draft.get('invoice_id') or '').strip(), str(draft.get('customer_name') or draft.get('customer_id') or '').strip()
+            try:
+                amount = int(draft.get('amount'))
+                issue, due = str(draft.get('issue_date') or ''), str(draft.get('due_date') or '')
+                date.fromisoformat(issue); date.fromisoformat(due)
+            except (TypeError, ValueError):
+                raise ValueError('Each reviewed invoice needs whole-INR amount and ISO issue/due dates')
+            if not iid or not customer or amount <= 0 or due < issue:
+                raise ValueError('Each reviewed invoice needs an ID, customer, positive amount, and valid dates')
+            if (iid in ids or (mode == 'append' and iid in existing_ids)) and not keep_duplicates:
+                raise ValueError(f'Invoice {iid} is a duplicate; explicitly keep duplicates only after review')
+            ids.add(iid)
+            cid = str(draft.get('customer_id') or customer).strip()
+            incoming.append(dict(id=iid, customer_id=cid, amount=amount, received_amount=int(draft.get('received_amount') or 0),
+                issue_date=issue, due_date=due, paid_date=draft.get('paid_date'), status='open'))
+        customers = {customer['id']: customer for customer in business.get('customers', [])}
+        for item in incoming:
+            customers.setdefault(item['customer_id'], dict(id=item['customer_id'], name=item['customer_id'], segment='small'))
+        if mode == 'replace':
+            business['invoices'] = incoming
+            business['customers'] = list(customers.values())
+            connection.execute(delete(db.receipts).where(db.receipts.c.business_id == business_id))
+        else:
+            business.setdefault('customers', []).extend(c for cid, c in customers.items() if cid not in {x['id'] for x in business.get('customers', [])})
+            business.setdefault('invoices', []).extend(incoming)
+        business['data_source'] = 'imported'
+        connection.execute(update(db.workspaces).where(db.workspaces.c.id == business_id).values(payload=json.dumps(business)))
+    return {'saved': True, 'invoice_count': len(incoming), 'mode': mode}
+
+
+def edit_invoice(invoice_id, changes, business_id):
+    """Apply an owner-supplied edit to one tenant-scoped invoice and return it."""
+    allowed = {'due_date', 'issue_date', 'amount', 'customer_id'}
+    if not changes or not set(changes).issubset(allowed):
+        raise ValueError('Only invoice date, amount, and customer fields can be edited here')
+    with db.transaction() as connection:
+        row = connection.execute(select(db.workspaces.c.payload).where(db.workspaces.c.id == business_id).with_for_update()).one()
+        business = json.loads(row[0])
+        invoice = next((item for item in business['invoices'] if item['id'] == invoice_id), None)
+        if invoice is None: raise ValueError('Invoice not found')
+        invoice.update(changes)
+        try:
+            invoice['amount'] = int(invoice['amount'])
+            date.fromisoformat(invoice['issue_date']); date.fromisoformat(invoice['due_date'])
+        except (TypeError, ValueError): raise ValueError('Use whole-INR amount and ISO dates')
+        if invoice['amount'] <= 0 or invoice['due_date'] < invoice['issue_date'] or invoice.get('received_amount', 0) > invoice['amount']:
+            raise ValueError('Invoice dates or amount are invalid')
+        connection.execute(update(db.workspaces).where(db.workspaces.c.id == business_id).values(payload=json.dumps(business)))
+        return invoice
+
+
+def delete_invoice(invoice_id, business_id):
+    """Delete a tenant-scoped invoice only when it has no recorded receipt."""
+    with db.transaction() as connection:
+        row = connection.execute(select(db.workspaces.c.payload).where(db.workspaces.c.id == business_id).with_for_update()).one()
+        business = json.loads(row[0])
+        target = next((item for item in business['invoices'] if item['id'] == invoice_id), None)
+        if target is None: return False
+        if connection.execute(select(db.receipts.c.id).where(db.receipts.c.business_id == business_id, db.receipts.c.invoice_id == invoice_id)).first():
+            raise ValueError('Invoices with recorded receipts cannot be deleted')
+        business['invoices'].remove(target)
+        connection.execute(update(db.workspaces).where(db.workspaces.c.id == business_id).values(payload=json.dumps(business)))
+        return True
 
 
 def ledger_summary(business):

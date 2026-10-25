@@ -41,4 +41,10 @@
 - **Open Issues**: None
 - **Tests**: `git grep -i "demo" backend frontend/src` (0 results), `engine.check_contract` (PASS), `npm run build` (PASS), `pytest backend/tests shared/tests` (136 passed)
 
+## P05: Review-first invoice import API
+- **Status**: PARTIAL
+- **Files Changed**: `backend/modules/invoice_mapper.py`, `backend/modules/gst_einvoice.py`, `backend/routers/invoices.py`, `backend/ledger.py`, `backend/main.py`, `backend/tests/test_invoice_import_router.py`, `docs/FEATURE_STATUS.md`
+- **Open Issues**: The requested UI upload/review workflow and XLSX/PDF multi-invoice support are not yet implemented. Full backend suite has an unrelated date-sensitive failure in `test_expenses_totals_and_forecast_agree`; frontend build is currently blocked by existing unstaged unused declarations in `App.tsx`.
+- **Tests**: invoice-import router tests (3 passed), `engine.check_contract` (PASS)
+
 

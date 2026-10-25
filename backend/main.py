@@ -8,11 +8,17 @@ from fastapi import FastAPI, HTTPException, Depends, Request, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-from . import ledger, auth, database, customer_behavior, expenses, scenarios, pdf_import
+from . import clock, ledger, auth, database, customer_behavior, expenses, scenarios, pdf_import
+from .routers.invoices import router as invoices_router
 from .scenarios import Scenario
 from sqlalchemy import update
 
 DelayModel = Literal['empirical', 'survival']
+
+
+class BalanceUpdate(BaseModel):
+    cash_balance: int = Field(ge=0, strict=True)
+    cash_updated_on: date | None = None
 
 
 class InvoiceImport(BaseModel):
@@ -95,6 +101,7 @@ class CustomerContext(BaseModel):
 def current_business(business_id):
     saved = ledger.load_business(business_id)
     if saved is not None:
+        saved['as_of'] = clock.today_ist().isoformat()
         return saved
     raise HTTPException(409, 'Complete business setup first')
 
@@ -111,6 +118,31 @@ def annotated(forecast, business, requested, business_id):
     sales_plan = business.get('sales_plan') or {}
     monthly_sales = float(sales_plan.get('monthly_amount', 0) or 0)
     warnings = list(forecast.get('warnings') or [])
+
+    cash_updated_on = business.get('cash_updated_on') or business.get('as_of')
+    stale = clock.is_stale(cash_updated_on, max_days=3)
+    if cash_updated_on:
+        try:
+            c_date = date.fromisoformat(cash_updated_on.split('T')[0])
+            if c_date < clock.today_ist():
+                stale = True
+        except (ValueError, TypeError):
+            stale = True
+    else:
+        stale = True
+
+    forecast['stale'] = stale
+    forecast['cash_last_updated'] = cash_updated_on
+
+    if stale and cash_updated_on:
+        stale_warning = f"Your balance is from {cash_updated_on}. Update it for an accurate forecast."
+        if stale_warning not in warnings:
+            warnings.insert(0, stale_warning)
+
+    gap_summary = business.get('_gap_summary')
+    if gap_summary:
+        forecast['estimated_since_last_update'] = gap_summary
+
     if not obligations and monthly_sales == 0:
         warning_msg = "No expenses entered: forecast only shows invoice receipts"
         if warning_msg not in warnings:
@@ -152,6 +184,7 @@ async def lifespan(app):
 
 app = FastAPI(title="CashFlow API", lifespan=lifespan)
 app.include_router(auth.router)
+app.include_router(invoices_router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=auth.ALLOWED_ORIGINS,
@@ -181,8 +214,10 @@ class Onboarding(BaseModel):
 
 @app.post('/api/onboarding')
 def onboard(payload: Onboarding, user: auth.Account = Depends(auth.require_user)):
-    business = dict(name=payload.name.strip(), as_of=payload.as_of.isoformat(),
+    as_of_str = payload.as_of.isoformat()
+    business = dict(name=payload.name.strip(), as_of=as_of_str,
         opening_cash=payload.opening_cash, safety_floor=payload.safety_floor,
+        cash_balance=payload.opening_cash, cash_updated_on=as_of_str,
         customers=[], invoices=[], supplier_bills=[], obligations=[],
         sales_plan=dict(monthly_amount=0, terms_days=30, monthly_noise_pct=0),
         data_source='owner', currency='INR')
@@ -201,6 +236,13 @@ def onboard(payload: Onboarding, user: auth.Account = Depends(auth.require_user)
 @app.get("/api/business")
 def get_business(user: auth.Account = Depends(auth.require_user)):
     return fixture_response(current_business(user.business_id), 'engine')
+
+
+@app.post("/api/business/balance")
+def update_balance(payload: BalanceUpdate, user: auth.Account = Depends(auth.require_user)):
+    updated_date = payload.cash_updated_on or clock.today_ist()
+    updated = ledger.update_cash_balance(user.business_id, payload.cash_balance, updated_date.isoformat())
+    return dict(saved=True, cash_balance=updated['cash_balance'], cash_updated_on=updated['cash_updated_on'])
 
 
 @app.get("/api/forecast")
