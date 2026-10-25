@@ -85,7 +85,9 @@ export default function ScenarioPlanner({ apiUrl, business, forecast, delayModel
       if (change.type === 'delay_customer') Object.assign(row, { customer_id: change.customer_id, extra_days: String(change.extra_days) });
       else if (change.type === 'extra_expense') Object.assign(row, { amount: String(change.amount), date: change.date });
       else if (change.type === 'sales_change') row.pct = String(change.pct);
-      else row.extra_days = String(change.extra_days);
+      else if (change.type === 'supplier_terms') row.extra_days = String(change.extra_days);
+      // Revised schedules are retained in the saved API definition; their editor
+      // is intentionally introduced in a later UI task.
       return row;
     });
     onDraft({ name: item.name, changes }); setView('build'); setEvaluated(null); setError('');

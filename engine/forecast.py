@@ -166,6 +166,8 @@ def _run_forecast_core(
 
     # Parse scenario changes
     customer_extra_days: dict[str, int] = {}
+    invoice_extra_days: dict[str, int] = {}
+    revised_schedules: dict[str, dict] = {}
     sales_pct_change = 0.0
     extra_expenses: list[dict] = []
     supplier_extra_days = 0
@@ -175,9 +177,10 @@ def _run_forecast_core(
             ctype = change.get("type")
             if ctype == "delay_customer":
                 cid = change.get("customer_id")
-                customer_extra_days[cid] = customer_extra_days.get(cid, 0) + int(
-                    change.get("extra_days", 0)
-                )
+                targets = change.get('invoice_ids') or []
+                if targets:
+                    for iid in targets: invoice_extra_days[iid] = invoice_extra_days.get(iid, 0) + int(change.get('extra_days', 0))
+                else: customer_extra_days[cid] = customer_extra_days.get(cid, 0) + int(change.get("extra_days", 0))
             elif ctype == "sales_change":
                 sales_pct_change += float(change.get("pct", 0.0))
             elif ctype == "extra_expense":
@@ -185,8 +188,15 @@ def _run_forecast_core(
                     "amount": int(change.get("amount", 0)),
                     "date": change.get("date"),
                 })
+                if change.get('repeat') == 'monthly':
+                    for n in range(1, int(change.get('repeat_count') or 0)):
+                        repeat_date = datetime.date.fromisoformat(change['date']) + datetime.timedelta(days=30*n)
+                        extra_expenses.append({'amount': int(change.get('amount', 0)), 'date': repeat_date.isoformat()})
             elif ctype == "supplier_terms":
-                supplier_extra_days += int(change.get("extra_days", 0))
+                supplier_extra_days += int(change.get("extra_days", 0)) * (-1 if change.get('direction') == 'shorten' else 1)
+            elif ctype == 'revised_payment_schedule':
+                target = change.get('invoice_id')
+                if target: revised_schedules[target] = change
 
     # Pre-allocate inflow and outflow matrices (n_sims x 90)
     inflows = np.zeros((n_sims, n_days), dtype=np.int64)
@@ -249,7 +259,16 @@ def _run_forecast_core(
         elif "amount_multiplier" in inv:
             inv_amt = int(round(inv_amt * float(inv["amount_multiplier"])))
 
-        extra_days = customer_extra_days.get(cid, 0)
+        extra_days = invoice_extra_days.get(inv.get('id'), customer_extra_days.get(cid, 0))
+        schedule = revised_schedules.get(inv.get('id'))
+        if schedule:
+            for installment in schedule['installments']:
+                planned = datetime.date.fromisoformat(installment['date'])
+                for s in range(n_sims):
+                    final = planned if rng.random() < float(schedule.get('reliability', .9)) else planned + datetime.timedelta(days=max(1, int(rng.choice(segment_delays.get(cust_segment.get(cid, 'small'), [15])))))
+                    index = (final - as_of).days
+                    if 0 <= index < n_days: inflows[s, index] += int(installment['amount'])
+            continue
         accelerate_days = int(inv.get("accelerate_days", 0))
         override_pay_day = inv.get("override_pay_day")
         collection_record = None

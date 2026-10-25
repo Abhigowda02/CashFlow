@@ -6,6 +6,8 @@ from backend.main import app
 
 @pytest.fixture(autouse=True)
 def isolated_database(tmp_path, monkeypatch):
+    monkeypatch.setenv('APP_ENV', 'test')
+    monkeypatch.setenv('APP_FAKE_TODAY', '2026-10-24')
     monkeypatch.setattr(database, 'DATABASE_URL', f'sqlite:///{(tmp_path / "saas.sqlite3").as_posix()}')
     from ml import personalization
     monkeypatch.setattr(personalization, 'ARTIFACT_ROOT', tmp_path / 'models')

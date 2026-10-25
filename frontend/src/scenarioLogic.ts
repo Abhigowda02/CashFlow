@@ -1,8 +1,9 @@
 export type ScenarioChange =
-  | { type: 'delay_customer'; customer_id: string; extra_days: number }
-  | { type: 'sales_change'; pct: number }
-  | { type: 'extra_expense'; amount: number; date: string }
-  | { type: 'supplier_terms'; extra_days: number };
+  | { type: 'delay_customer'; customer_id: string; extra_days: number; invoice_ids?: string[] }
+  | { type: 'sales_change'; pct: number; from_date?: string; duration_days?: number }
+  | { type: 'extra_expense'; amount: number; date: string; category?: string; label?: string; repeat?: 'once'|'monthly'; repeat_count?: number }
+  | { type: 'supplier_terms'; extra_days: number; direction?: 'extend'|'shorten'; supplier_id?: string }
+  | { type: 'revised_payment_schedule'; invoice_id?: string; customer_id?: string; installments: {date:string;amount:number}[]; reliability?: number };
 export type ScenarioDefinition = { name: string; changes: ScenarioChange[] };
 export type SavedScenario = ScenarioDefinition & { id: string; created_at: string; updated_at: string };
 export type ChangeDraft = { key: string; type: ScenarioChange['type']; customer_id?: string;
@@ -59,13 +60,15 @@ export function buildDefinition(draft: PlannerDraft, business: PlannerBusiness) 
       if (singles.has(row.type)) errors.push(`${label}: edit the existing sales change instead of adding another.`);
       singles.add(row.type);
       changes.push({ type: row.type, pct });
-    } else {
+    } else if (row.type === 'supplier_terms') {
       const extra = Number(row.extra_days);
       if (!row.extra_days?.trim() || !Number.isInteger(extra) || extra < 1 || extra > 180) errors.push(`${label}: enter a supplier extension of 1–180 days.`);
       if (!business.supplier_bills?.some(bill => bill.status === 'open')) errors.push(`${label}: add an open supplier bill before extending its terms.`);
       if (singles.has(row.type)) errors.push(`${label}: edit the existing supplier extension instead of adding another.`);
       singles.add(row.type);
       changes.push({ type: row.type, extra_days: extra });
+    } else {
+      errors.push(`${label}: revised payment schedules require the invoice schedule editor.`);
     }
   }
   return { errors, definition: { name: draft.name.trim() || 'Unsaved scenario', changes } as ScenarioDefinition };
@@ -94,5 +97,6 @@ export function changeDescription(change: ScenarioChange, business: PlannerBusin
   }
   if (change.type === 'extra_expense') return `Pay an additional ${money(change.amount)} on ${change.date}.`;
   if (change.type === 'sales_change') return `${change.pct < 0 ? 'Reduce' : 'Increase'} projected future sales by ${Math.abs(change.pct)}%; existing invoices are unchanged.`;
-  return `Extend all open supplier bills by ${change.extra_days} days, assuming suppliers agree.`;
+  if (change.type === 'supplier_terms') return `${change.direction === 'shorten' ? 'Shorten' : 'Extend'} open supplier bills by ${change.extra_days} days, assuming suppliers agree.`;
+  return `Use the reviewed instalment schedule with ${Math.round((change.reliability ?? .9) * 100)}% reliability.`;
 }

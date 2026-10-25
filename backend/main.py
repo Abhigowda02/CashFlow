@@ -102,6 +102,7 @@ class CustomerContext(BaseModel):
 def current_business(business_id):
     saved = ledger.load_business(business_id)
     if saved is not None:
+        saved['_observation_as_of'] = saved.get('as_of')
         saved['as_of'] = clock.today_ist().isoformat()
         return saved
     raise HTTPException(409, 'Complete business setup first')

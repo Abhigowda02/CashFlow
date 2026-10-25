@@ -61,6 +61,8 @@ type Business = PlanBusiness & {
   name: string;
   as_of: string;
   opening_cash: number;
+  cash_balance?: number;
+  cash_updated_on?: string;
   safety_floor: number;
   customers: Customer[];
   invoices: Invoice[];
@@ -84,6 +86,15 @@ type Forecast = {
   min_balance_p50: number;
   drivers: ForecastDriver[];
   warnings?: string[];
+  stale?: boolean;
+  cash_last_updated?: string;
+  estimated_since_last_update?: {
+    gap_days: number;
+    estimated_receipts: number;
+    obligations_due: number;
+    net_change: number;
+    detail: string;
+  };
   meta?: { delay_model_used?: string; delay_model_requested?: string; data_source?: string;
     payment_model?: { status: string; message: string }; model_training_source?: string };
 };
@@ -189,6 +200,89 @@ function displayError(error: unknown) {
   return error instanceof Error ? error.message : "Something went wrong.";
 }
 
+function UpdateBalanceModal({
+  apiUrl,
+  business,
+  onClose,
+  onUpdated,
+}: {
+  apiUrl: string;
+  business: Business;
+  onClose: () => void;
+  onUpdated: () => Promise<void>;
+}) {
+  const [cash, setCash] = useState(business.cash_balance ?? business.opening_cash ?? 0);
+  const [dateVal, setDateVal] = useState(business.cash_updated_on ?? business.as_of);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      await apiRequest(`${apiUrl}/business/balance`, {
+        cash_balance: cash,
+        cash_updated_on: dateVal,
+      });
+      await onUpdated();
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update balance");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="update-balance-title">
+      <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+        <h3 id="update-balance-title" className="text-lg font-semibold text-slate-900">Update cash balance</h3>
+        <p className="mt-1 text-xs text-slate-500">
+          Enter the verified closing balance from your bank statement or passbook.
+        </p>
+        {error && <p role="alert" className="mt-2 text-sm text-rose-700">{error}</p>}
+        <form onSubmit={handleSubmit} className="mt-4 space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-slate-700">
+              Verified bank / cash balance (INR)
+            </label>
+            <input
+              type="number"
+              required
+              min="0"
+              step="1"
+              className="field-input mt-1 w-full"
+              value={cash}
+              onChange={(e) => setCash(Number(e.target.value))}
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-700">
+              Balance as of date
+            </label>
+            <input
+              type="date"
+              required
+              className="field-input mt-1 w-full"
+              value={dateVal}
+              onChange={(e) => setDateVal(e.target.value)}
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <button type="button" className="button-secondary" onClick={onClose} disabled={busy}>
+              Cancel
+            </button>
+            <button type="submit" className="button-primary" disabled={busy}>
+              {busy ? "Updating…" : "Save balance"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 function App({ account, onSignout }: { account: Account; onSignout: () => Promise<void> }) {
   const [signoutError, setSignoutError] = useState('');
   const [delayModel, setDelayModel] = useState('empirical');
@@ -199,6 +293,7 @@ function App({ account, onSignout }: { account: Account; onSignout: () => Promis
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [plannerDraft, setPlannerDraft] = useState<PlannerDraft>({ name: '', changes: [] });
+  const [showBalanceModal, setShowBalanceModal] = useState(false);
 
   const loadData = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
@@ -360,6 +455,9 @@ function App({ account, onSignout }: { account: Account; onSignout: () => Promis
               </p>
             </div>
             <div className="flex items-center gap-2">
+              <button className="button-secondary" onClick={() => setShowBalanceModal(true)}>
+                Update balance
+              </button>
               <button className="button-secondary" title={account.email} onClick={() => { void onSignout().catch(e => setSignoutError(e.message)); }}>Sign out</button>
               <label className="model-select">
                 <span>Forecast method</span>
@@ -450,6 +548,7 @@ function App({ account, onSignout }: { account: Account; onSignout: () => Promis
           </footer>
         </main>
       </div>
+      {showBalanceModal && <UpdateBalanceModal apiUrl={API_URL} business={business} onClose={() => setShowBalanceModal(false)} onUpdated={async () => { await loadData(); }} />}
     </div>
   );
 }
@@ -556,8 +655,8 @@ function Dashboard({
   }[] = [
     {
       label: "Available cash",
-      value: money(business.opening_cash),
-      subtext: "Cash recorded as of the observation date",
+      value: money(business.cash_balance ?? business.opening_cash),
+      subtext: `Balance last updated ${formatDate(business.cash_updated_on ?? business.as_of)}`,
       icon: Wallet,
       accent: "green",
     },

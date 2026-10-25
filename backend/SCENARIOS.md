@@ -12,6 +12,14 @@ for very overdue invoices. Baseline and scenario forecasts use the same random
 draws, preserving other customers' receipts and future sales when only a customer
 delay changes. Existing explicit collection-action overrides retain precedence.
 
+Customer delays may optionally name invoice IDs, in which case only those open
+invoices are delayed. Extra expenses can be labelled and categorised and may be
+repeated monthly for an explicit count. Sales changes can carry a future date
+window, and supplier terms can shorten as well as extend terms (an MSME extension
+must be reviewed if it would cross the applicable 45-day guard). A revised payment
+schedule can replace one outstanding invoice with up to six reviewed instalments;
+it is a what-if only and unreliable instalments fall back to normal payment delay.
+
 Other events are an additional expense on a selected date, a percentage change in
 planned future sales, and an agreed extension of all open supplier bills. There
 are no preselected stress changes. Existing invoice amounts are unaffected by a
