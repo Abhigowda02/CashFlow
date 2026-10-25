@@ -35,6 +35,11 @@ The estimated shortage date summarises paths that experience a shortage, whereas
 median runway uses the P50 line. Editing assumptions marks old results as needing
 recalculation.
 
+Each returned `baseline` and `scenario` forecast has additive
+`shortage_analysis` metrics: timing, probability, P10/P50 minima, peak funding
+gap, days below the floor and scenario deltas. The top-level response remains
+`{baseline, scenario}` for backward compatibility.
+
 Give the scenario a name and save its assumptions. The database stores each saved
 definition against the signed-in business. Open **Saved scenarios**, select up to
 two, and compare them alongside a freshly computed baseline. Forecasts are never

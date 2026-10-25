@@ -498,10 +498,14 @@ def compare_scenario(
     scen_fc = run_forecast(
         business, scenario=scenario, n_sims=n_sims, seed=seed, delay_model=delay_model
     )
-    return {
-        "baseline": baseline,
-        "scenario": scen_fc,
-    }
+    from .shortage import analyse, with_delta
+    baseline_analysis = analyse(baseline)
+    # Preserve the historic top-level response shape.  Additive shortage data is
+    # embedded in each existing forecast rather than adding a sibling envelope.
+    baseline['shortage_analysis'] = baseline_analysis
+    scen_fc['shortage_analysis'] = (baseline_analysis if not (scenario or {}).get('changes')
+                                    else with_delta(analyse(scen_fc), baseline_analysis))
+    return {"baseline": baseline, "scenario": scen_fc}
 
 
 def rank_actions(
