@@ -47,4 +47,10 @@
 - **Open Issues**: The requested UI upload/review workflow and XLSX/PDF multi-invoice support are not yet implemented. Full backend suite has an unrelated date-sensitive failure in `test_expenses_totals_and_forecast_agree`; frontend build is currently blocked by existing unstaged unused declarations in `App.tsx`.
 - **Tests**: invoice-import router tests (3 passed), `engine.check_contract` (PASS)
 
+## Module batch 1: payment model helpers
+- **Status**: DONE
+- **Files Changed**: `backend/modules/payment_adjust.py`, `backend/tests/test_payment_adjust.py`
+- **Open Issues**: Integration into the forecast engine remains a later batch step.
+- **Tests**: `python -m pytest backend/tests/test_payment_adjust.py -q` (10 passed)
+
 
