@@ -59,4 +59,10 @@
 - **Open Issues**: API and forecast-log integration remains a later batch step.
 - **Tests**: `python -m pytest backend/tests/test_accuracy.py -q` (9 passed)
 
+## Module batch 3: forecast-view helpers
+- **Status**: DONE
+- **Files Changed**: `backend/modules/forecast_view_builder.py`, `backend/tests/test_forecast_view_builder.py`
+- **Open Issues**: Endpoint integration remains a later batch step.
+- **Tests**: `python -m pytest backend/tests/test_forecast_view_builder.py -q` (8 passed)
+
 
