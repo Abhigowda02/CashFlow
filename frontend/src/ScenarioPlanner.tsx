@@ -160,6 +160,7 @@ export default function ScenarioPlanner({ apiUrl, business, forecast, delayModel
           {result && evaluated ? <>
             {stale && <div role="status" className="rounded-md border border-amber-200 bg-amber-50 p-4 text-xs leading-5 text-amber-900"><strong>Needs recalculation.</strong> The results below belong to the last evaluated assumptions, not your current edits.</div>}
             <div className={`panel-card p-5 ${stale ? 'opacity-65' : ''}`}><p className="eyebrow">3. UNDERSTAND THE IMPACT</p><h2 className="mt-2 text-lg font-semibold">{evaluated.definition.name}</h2>
+              <ShortageBanner scenario={result.scenario} baseline={result.baseline} />
               <p className="mt-3 text-sm leading-6 text-slate-700">{impactSummary(result.baseline, result.scenario)}</p>
               <p className="mt-2 text-xs text-slate-500">Lowest median cash changes by <strong>{signedMoney(result.scenario.min_balance_p50-result.baseline.min_balance_p50)}</strong> versus the baseline.</p>
               <details className="mt-4 text-xs"><summary className="cursor-pointer text-indigo-700">View evaluated assumptions</summary><ul className="mt-2 list-disc space-y-2 pl-4 text-slate-500">{evaluated.definition.changes.map((change, index) => <li key={index}>{changeDescription(change, business)}</li>)}</ul></details>
@@ -180,6 +181,16 @@ export default function ScenarioPlanner({ apiUrl, business, forecast, delayModel
 }
 
 function signedMoney(value: number) { return `${value > 0 ? '+' : value < 0 ? '−' : ''}${money(Math.abs(value))}`; }
+function ShortageBanner({ scenario, baseline }: { scenario: PlannerForecast; baseline: PlannerForecast }) {
+  const text = (forecast: PlannerForecast) => {
+    const value = forecast.shortage_analysis;
+    if (!value) return null;
+    return !value.first_shortage_date || value.shortage_probability <= 0 ? 'No shortage expected' : `Shortage likely on ${dateLabel(value.first_shortage_date)} (${percent(value.shortage_probability)} chance), peak gap Rs ${new Intl.NumberFormat('en-IN', { notation: 'compact', maximumFractionDigits: 1 }).format(value.peak_funding_gap)}`;
+  };
+  const current = text(scenario), base = text(baseline);
+  if (!current) return null;
+  return <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-950"><strong>{current}</strong>{base && base !== current && <p className="mt-1 text-xs text-amber-800">Baseline: {base}</p>}</div>;
+}
 function impactSummary(baseline: PlannerForecast, scenario: PlannerForecast) {
   const delta = Math.round((scenario.shortage_prob-baseline.shortage_prob)*100);
   const change = delta > 0 ? `raises the shortage chance by ${delta} percentage points` : delta < 0 ? `reduces the shortage chance by ${Math.abs(delta)} percentage points` : 'leaves the simulated shortage chance unchanged';

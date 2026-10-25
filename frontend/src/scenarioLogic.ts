@@ -15,6 +15,7 @@ export type PlannerBusiness = { as_of: string; customers: { id: string; name: st
   sales_plan?: { monthly_amount: number } };
 export type PlannerForecast = { dates: string[]; p10: number[]; p50: number[]; p90: number[];
   safety_floor: number; shortage_prob: number; first_shortage_date: string | null; min_balance_p50: number;
+  shortage_analysis?: { first_shortage_date: string | null; shortage_probability: number; peak_funding_gap: number };
   meta?: { delay_model_used?: string } };
 export type ScenarioResult = { baseline: PlannerForecast; scenario: PlannerForecast };
 
