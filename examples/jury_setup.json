@@ -1,0 +1,58 @@
+{
+  "synthetic": true,
+  "name": "Demo Textile Supplies (Synthetic)",
+  "as_of": "2026-10-25",
+  "opening_cash": 100000,
+  "safety_floor": 50000,
+  "obligations": [
+    {
+      "id": "demo-payroll",
+      "name": "Payroll",
+      "amount": 180000,
+      "day_of_month": 1,
+      "category": "salary"
+    },
+    {
+      "id": "demo-rent",
+      "name": "Office rent",
+      "amount": 30000,
+      "day_of_month": 5,
+      "category": "rent"
+    },
+    {
+      "id": "demo-emi",
+      "name": "Equipment EMI",
+      "amount": 25000,
+      "day_of_month": 10,
+      "category": "loan"
+    },
+    {
+      "id": "demo-tax",
+      "name": "Tax provision (demo date)",
+      "amount": 35000,
+      "day_of_month": 20,
+      "category": "tax"
+    }
+  ],
+  "supplier_bills": [
+    {
+      "id": "demo-bill-1",
+      "supplier": "Demo Fabric Supplier",
+      "amount": 85000,
+      "due_date": "2026-10-28",
+      "is_msme": true,
+      "status": "open"
+    },
+    {
+      "id": "demo-bill-2",
+      "supplier": "Demo Packaging Supplier",
+      "amount": 45000,
+      "due_date": "2026-11-06",
+      "is_msme": false,
+      "status": "open"
+    }
+  ],
+  "monthly_sales": 300000,
+  "terms_days": 30,
+  "monthly_noise_pct": 15
+}

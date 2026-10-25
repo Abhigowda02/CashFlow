@@ -7,37 +7,41 @@ import {
   Banknote,
   CalendarDays,
   Check,
-  ChevronDown,
   Clock3,
   Factory,
   FileText,
   Gauge,
   LayoutDashboard,
   LoaderCircle,
-  Play,
   RefreshCw,
-  ShieldAlert,
   Sparkles,
   TrendingDown,
   Wallet,
+  Users,
   type LucideIcon,
 } from "lucide-react";
 import {
-  AreaChart,
+  ComposedChart,
+  Area,
   CartesianGrid,
   Line,
-  LineChart,
-  ReferenceArea,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
+import LedgerPage from './LedgerPage';
+import CustomersPage from './CustomersPage';
+import CollectionsPanel from './CollectionsPanel';
+import ExpensesPage from './ExpensesPage';
+import ScenarioPlanner from './ScenarioPlanner';
+import { type PlannerDraft } from './scenarioLogic';
+import { API_BASE, apiRequest, type Account } from './api';
+import { type PlanBusiness } from './WorkspacePlan';
+import DemoControl from './DemoControl';
 
-const API_URL = (
-  import.meta.env.VITE_API_URL ?? "http://localhost:8000/api"
-).replace(/\/+$/, "");
+const API_URL = API_BASE;
 
 type Customer = {
   id: string;
@@ -51,15 +55,17 @@ type Invoice = {
   amount: number;
   due_date: string;
   status: "open" | "paid";
+  received_amount?: number;
 };
 
-type Business = {
+type Business = PlanBusiness & {
   name: string;
   as_of: string;
   opening_cash: number;
   safety_floor: number;
   customers: Customer[];
   invoices: Invoice[];
+  data_source?: string;
 };
 
 type ForecastDriver = {
@@ -78,6 +84,8 @@ type Forecast = {
   first_shortage_date: string | null;
   min_balance_p50: number;
   drivers: ForecastDriver[];
+  meta?: { delay_model_used?: string; delay_model_requested?: string; data_source?: string;
+    payment_model?: { status: string; message: string }; model_training_source?: string };
 };
 
 type Action = {
@@ -92,24 +100,16 @@ type Action = {
   runway_days_gained: number;
 };
 
-type ScenarioChange =
-  | { type: "delay_customer"; customer_id: string; extra_days: number }
-  | { type: "sales_change"; pct: number }
-  | { type: "extra_expense"; amount: number; date: string }
-  | { type: "supplier_terms"; extra_days: number };
-
-type ScenarioForecast = {
-  baseline: Forecast;
-  scenario: Forecast;
-};
-
-type TabId = "dashboard" | "forecast" | "simulator" | "actions";
+type TabId = "dashboard" | "forecast" | "simulator" | "actions" | "ledger" | "customers" | "expenses";
 
 const tabs: { id: TabId; label: string; icon: LucideIcon }[] = [
-  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { id: "forecast", label: "Forecast", icon: TrendingDown },
-  { id: "simulator", label: "Simulator", icon: Sparkles },
-  { id: "actions", label: "Actions", icon: Check },
+  { id: "dashboard", label: "Overview", icon: LayoutDashboard },
+  { id: "ledger", label: "Invoices & cash", icon: FileText },
+  { id: "customers", label: "Customers", icon: Users },
+  { id: "expenses", label: "Expenses & obligations", icon: CalendarDays },
+  { id: "forecast", label: "Cash forecast", icon: TrendingDown },
+  { id: "simulator", label: "Scenario planner", icon: Sparkles },
+  { id: "actions", label: "Recommended actions", icon: Check },
 ];
 
 const inr = new Intl.NumberFormat("en-IN", {
@@ -157,35 +157,22 @@ function dayDifference(from: string, to: string) {
 }
 
 async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
-  const response = await fetch(`${API_URL}${path}`, { signal });
-  if (!response.ok) {
-    throw new Error(`Request failed (${response.status}) for ${path}`);
-  }
-  return (await response.json()) as T;
-}
-
-async function postJson<T>(path: string, body: unknown): Promise<T> {
-  const response = await fetch(`${API_URL}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!response.ok) {
-    const detail = await response.text();
-    throw new Error(
-      `Request failed (${response.status}) for ${path}${detail ? `: ${detail}` : ""}`,
-    );
-  }
-  return (await response.json()) as T;
+  return apiRequest<T>(`${API_URL}${path}`, undefined, signal);
 }
 
 function chartData(forecast: Forecast) {
-  return forecast.dates.map((date, index) => ({
-    date,
-    p10: forecast.p10[index] ?? 0,
-    p50: forecast.p50[index] ?? 0,
-    p90: forecast.p90[index] ?? 0,
-  }));
+  return forecast.dates.map((date, index) => {
+    const p10 = forecast.p10[index] ?? 0;
+    const p50 = forecast.p50[index] ?? 0;
+    const p90 = forecast.p90[index] ?? 0;
+    return {
+      date,
+      p10,
+      p50,
+      p90,
+      range: [p10, p90] as [number, number],
+    };
+  });
 }
 
 function probability(value: number) {
@@ -202,23 +189,16 @@ function displayError(error: unknown) {
   return error instanceof Error ? error.message : "Something went wrong.";
 }
 
-function App() {
+function App({ account, onSignout }: { account: Account; onSignout: () => Promise<void> }) {
+  const [signoutError, setSignoutError] = useState('');
+  const [delayModel, setDelayModel] = useState('empirical');
   const [activeTab, setActiveTab] = useState<TabId>("dashboard");
   const [business, setBusiness] = useState<Business | null>(null);
   const [forecast, setForecast] = useState<Forecast | null>(null);
   const [actions, setActions] = useState<Action[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [selectedCustomer, setSelectedCustomer] = useState("");
-  const [customerDelay, setCustomerDelay] = useState(30);
-  const [salesChange, setSalesChange] = useState(-15);
-  const [expenseAmount, setExpenseAmount] = useState(150000);
-  const [expenseDate, setExpenseDate] = useState("");
-  const [supplierDelay, setSupplierDelay] = useState(15);
-  const [scenarioResult, setScenarioResult] =
-    useState<ScenarioForecast | null>(null);
-  const [scenarioLoading, setScenarioLoading] = useState(false);
-  const [scenarioError, setScenarioError] = useState<string | null>(null);
+  const [plannerDraft, setPlannerDraft] = useState<PlannerDraft>({ name: '', changes: [] });
 
   const loadData = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
@@ -226,25 +206,20 @@ function App() {
     try {
       const [businessData, forecastData, actionsData] = await Promise.all([
         getJson<Business>("/business", signal),
-        getJson<Forecast>("/forecast", signal),
-        getJson<Action[]>("/actions", signal),
+        getJson<Forecast>(`/forecast?delay_model=${delayModel}`, signal),
+        getJson<Action[]>(`/actions?delay_model=${delayModel}`, signal),
       ]);
+      if (signal?.aborted) return;
       setBusiness(businessData);
       setForecast(forecastData);
       setActions(actionsData);
-      setSelectedCustomer((current) =>
-        businessData.customers.some((customer) => customer.id === current)
-          ? current
-          : (businessData.customers[0]?.id ?? ""),
-      );
-      setExpenseDate((current) => current || businessData.as_of);
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
       setLoadError(displayError(error));
     } finally {
       if (!signal?.aborted) setLoading(false);
     }
-  }, []);
+  }, [delayModel]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -259,7 +234,19 @@ function App() {
         (invoice) =>
           invoice.status === "open" && invoice.due_date < business.as_of,
       )
-      .reduce((total, invoice) => total + invoice.amount, 0);
+      .reduce((total, invoice) => total + invoice.amount - (invoice.received_amount ?? 0), 0);
+  }, [business]);
+
+  const hasForecastInputs = useMemo(() => {
+    if (!business) return false;
+    return business.invoices.some(
+      (invoice) =>
+        invoice.status === "open" &&
+        invoice.amount - (invoice.received_amount ?? 0) > 0,
+    ) ||
+      (business.obligations?.length ?? 0) > 0 ||
+      (business.supplier_bills ?? []).some((bill) => bill.status === "open") ||
+      (business.sales_plan?.monthly_amount ?? 0) > 0;
   }, [business]);
 
   const runwayDays = useMemo(() => {
@@ -272,50 +259,11 @@ function App() {
     return firstDate ? dayDifference(business.as_of, firstDate) : null;
   }, [business, forecast]);
 
-  const runScenario = async () => {
-    if (!business) return;
-    const changes: ScenarioChange[] = [];
-    if (selectedCustomer && customerDelay > 0) {
-      changes.push({
-        type: "delay_customer",
-        customer_id: selectedCustomer,
-        extra_days: customerDelay,
-      });
-    }
-    if (salesChange !== 0) {
-      changes.push({ type: "sales_change", pct: salesChange });
-    }
-    if (expenseAmount > 0 && expenseDate) {
-      changes.push({
-        type: "extra_expense",
-        amount: expenseAmount,
-        date: expenseDate,
-      });
-    }
-    if (supplierDelay > 0) {
-      changes.push({ type: "supplier_terms", extra_days: supplierDelay });
-    }
-
-    setScenarioLoading(true);
-    setScenarioError(null);
-    try {
-      const result = await postJson<ScenarioForecast>("/scenario", {
-        name: "Custom cash-flow scenario",
-        changes,
-      });
-      setScenarioResult(result);
-    } catch (error) {
-      setScenarioError(displayError(error));
-    } finally {
-      setScenarioLoading(false);
-    }
-  };
-
   if (loading) return <LoadingScreen />;
 
   if (loadError || !business || !forecast) {
     return (
-      <main className="grid min-h-screen place-items-center bg-[#f6f8f5] px-5">
+      <main className="grid min-h-screen place-items-center bg-[#f7f8fa] px-5">
         <div className="w-full max-w-md rounded-3xl border border-rose-100 bg-white p-8 text-center shadow-xl shadow-rose-950/5">
           <div className="mx-auto grid size-14 place-items-center rounded-2xl bg-rose-50 text-rose-600">
             <AlertCircle size={25} />
@@ -335,20 +283,27 @@ function App() {
     );
   }
 
-  const tone = shortageTone(forecast.shortage_prob);
+  const tone = hasForecastInputs ? shortageTone(forecast.shortage_prob) : "warning";
+  const isDemo = business.data_source === 'synthetic_demo';
+  const isSynthetic = isDemo || business.data_source === 'synthetic' || /demo|synthetic/i.test(business.name);
   const firstShortage =
     forecast.dates.find(
       (_, index) => forecast.p50[index] < forecast.safety_floor,
     ) ?? null;
 
   return (
-    <div className="min-h-screen bg-[#f6f8f5] text-slate-900">
-      <div className="mx-auto flex min-h-screen max-w-[1600px]">
-        <aside className="sidebar-shell hidden w-[252px] shrink-0 flex-col border-r border-slate-200/70 bg-white/80 px-5 py-6 lg:flex">
+    <div className="workspace-shell text-slate-900">
+      <a className="skip-link" href="#main-content">Skip to content</a>
+      <div className="mx-auto flex min-h-screen max-w-[1800px]">
+        <aside className="sidebar-shell hidden w-[236px] shrink-0 flex-col px-4 py-6 lg:flex">
           <Brand />
-          <div className="mt-12">
-            <p className="nav-caption">WORKSPACE</p>
-            <nav className="mt-3 space-y-1.5">
+          <div className="workspace-switcher">
+            <span className="workspace-avatar">{business.name.slice(0, 2).toUpperCase()}</span>
+            <div className="min-w-0"><p className="truncate text-xs font-semibold text-slate-800">{business.name}</p><p className="mt-1 text-[10px] text-slate-500">Business workspace · INR</p></div>
+          </div>
+          <div>
+            <p className="nav-caption px-3">FINANCE</p>
+            <nav aria-label="Primary navigation" className="mt-3 space-y-1.5">
               {tabs.map((tab) => (
                 <TabButton
                   key={tab.id}
@@ -360,53 +315,52 @@ function App() {
               ))}
             </nav>
           </div>
-          <div className="mt-auto rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4">
-            <div className="flex size-9 items-center justify-center rounded-xl bg-white text-emerald-700 shadow-sm">
-              <ShieldAlert size={18} />
-            </div>
-            <p className="mt-3 text-sm font-semibold text-slate-800">
-              Keep a steady eye
-            </p>
-            <p className="mt-1 text-xs leading-5 text-slate-500">
-              A little visibility today can prevent a cash crunch tomorrow.
-            </p>
-          </div>
-          <div className="mt-5 flex items-center gap-3 border-t border-slate-100 pt-5">
-            <div className="grid size-9 place-items-center rounded-full bg-[#e6ede4] text-xs font-bold text-emerald-900">
-              NS
+          <div className="mt-auto flex items-center gap-3 border-t border-slate-200 pt-5">
+            <div className="workspace-avatar">
+              {account.email.slice(0, 2).toUpperCase()}
             </div>
             <div className="min-w-0">
               <p className="truncate text-xs font-semibold text-slate-800">
-                {business.name}
+                Business owner
               </p>
-              <p className="mt-0.5 text-[11px] text-slate-400">Bengaluru, IN</p>
+              <p className="mt-0.5 truncate text-[11px] text-slate-400" title={account.email}>{account.email}</p>
             </div>
           </div>
         </aside>
 
-        <main className="min-w-0 flex-1 px-4 pb-10 pt-5 sm:px-7 lg:px-10 lg:pt-8">
-          <header className="mb-7 flex items-center justify-between gap-3">
+        <main id="main-content" className="min-w-0 flex-1 px-4 pb-10 pt-5 sm:px-7 lg:px-9 lg:pt-6">
+          <header className="workspace-topbar">
             <div className="lg:hidden">
               <Brand />
             </div>
             <div className="hidden lg:block">
-              <p className="text-xs font-medium text-slate-400">
-                {new Intl.DateTimeFormat("en-IN", {
-                  weekday: "long",
-                  day: "numeric",
-                  month: "long",
-                  year: "numeric",
-                }).format(new Date(`${business.as_of}T12:00:00`))}
+              <p className="text-xs font-medium text-slate-500">
+                Workspace <span className="mx-2 text-slate-300">/</span><span className="text-slate-800">{tabs.find(tab => tab.id === activeTab)?.label}</span>
               </p>
-              <p className="mt-1 text-sm font-semibold text-slate-700">
-                Good morning, Namma Stitch
+              <p
+                className="mt-1.5 text-[11px] text-slate-400"
+                title="Observation Date (as_of): Financial accounting anchors to reconciled bank statements rather than silently ticking with the computer clock."
+              >
+                Observation date:{" "}
+                <span className="font-medium text-slate-600">
+                  {new Intl.DateTimeFormat("en-IN", {
+                    weekday: "short",
+                    day: "numeric",
+                    month: "short",
+                    year: "numeric",
+                  }).format(new Date(`${business.as_of}T12:00:00`))}
+                </span>
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <span className="hidden rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-[11px] font-semibold text-emerald-800 sm:inline-flex">
-                <span className="mr-2 mt-1 size-1.5 rounded-full bg-emerald-500" />
-                Live forecast
-              </span>
+              <button className="button-secondary" title={account.email} onClick={() => { void onSignout().catch(e => setSignoutError(e.message)); }}>Sign out</button>
+              <label className="model-select">
+                <span>Forecast method</span>
+                <select aria-label="Forecast method" className="field-input" value={delayModel} onChange={event => setDelayModel(event.target.value)}>
+                  <option value="empirical">Historical delays</option>
+                  <option value="survival">Survival model</option>
+                </select>
+              </label>
               <button
                 aria-label="Refresh data"
                 className="icon-button"
@@ -418,7 +372,7 @@ function App() {
             </div>
           </header>
 
-          <div className="mb-6 flex gap-2 overflow-x-auto pb-1 lg:hidden">
+          <nav aria-label="Primary navigation" className="mb-6 grid grid-cols-2 gap-2 pb-1 lg:hidden">
             {tabs.map((tab) => (
               <TabButton
                 key={tab.id}
@@ -429,8 +383,31 @@ function App() {
                 onClick={() => setActiveTab(tab.id)}
               />
             ))}
-          </div>
+          </nav>
 
+          {isSynthetic && <aside aria-label="Synthetic data notice" className="mb-5 rounded-lg border border-indigo-200 bg-indigo-50 p-4 text-indigo-950">
+            <strong className="text-sm">Synthetic demo data</strong><p className="mt-1 text-xs leading-5">Fictional invoices and assumptions for demonstration. Forecasts and scenario results are estimates, not evidence of real-business accuracy.</p>
+            {isDemo && <DemoControl reset onLoaded={async () => { setPlannerDraft({ name: '', changes: [] }); await loadData(); }} />}
+          </aside>}
+          <div role="status" className="source-status">
+            <span className="status-dot" />
+            {isSynthetic ? 'Synthetic demo data' : business.data_source === 'imported' ? 'Imported invoice workspace' : 'Your business workspace'}
+            {' · '}Model used: {forecast.meta?.delay_model_used ?? 'unknown'}
+            {forecast.meta?.delay_model_used !== delayModel && ' · Requested model unavailable; historical-delay fallback used.'}
+            {delayModel === 'survival' && ' · Model accuracy on this business has not been validated.'}
+          </div>
+          {delayModel === 'survival' && forecast.meta?.payment_model &&
+            <p className="mb-5 text-xs leading-5 text-slate-500">{forecast.meta.payment_model.message}</p>}
+          <p role="note" className="mb-5 text-xs leading-5 text-slate-600"><strong>Forecast estimates:</strong> not yet validated on representative real businesses. Observed history describes past records; forecasts estimate future outcomes; scenario changes are assumptions. Suggested actions do not guarantee collection or prevent a shortage.</p>
+          {signoutError && <p role="alert" className="mb-4 text-sm text-rose-700">{signoutError}</p>}
+          {!hasForecastInputs &&
+            <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+              Your forecast currently reflects cash on hand only. Add expected receipts and planned outflows before relying on the runway or shortage estimate.
+              <button className="ml-2 underline" onClick={() => setActiveTab('ledger')}>Add your business records</button>
+            </div>}
+          {activeTab === 'ledger' && <LedgerPage apiUrl={API_URL} business={business} onChanged={() => loadData()} />}
+          {activeTab === 'customers' && <CustomersPage apiUrl={API_URL} />}
+          {activeTab === 'expenses' && <ExpensesPage apiUrl={API_URL} business={business} onChanged={() => loadData()} />}
           {activeTab === "dashboard" && (
             <Dashboard
               business={business}
@@ -439,41 +416,31 @@ function App() {
               runwayDays={runwayDays}
               firstShortage={firstShortage}
               tone={tone}
+              hasForecastInputs={hasForecastInputs}
               onNavigate={setActiveTab}
             />
           )}
-          {activeTab === "forecast" && <ForecastPage forecast={forecast} />}
-          {activeTab === "simulator" && (
-            <SimulatorPage
+          {activeTab === "forecast" && (
+            <ForecastPage
               business={business}
               forecast={forecast}
-              selectedCustomer={selectedCustomer}
-              setSelectedCustomer={setSelectedCustomer}
-              customerDelay={customerDelay}
-              setCustomerDelay={setCustomerDelay}
-              salesChange={salesChange}
-              setSalesChange={setSalesChange}
-              expenseAmount={expenseAmount}
-              setExpenseAmount={setExpenseAmount}
-              expenseDate={expenseDate}
-              setExpenseDate={setExpenseDate}
-              supplierDelay={supplierDelay}
-              setSupplierDelay={setSupplierDelay}
-              result={scenarioResult}
-              loading={scenarioLoading}
-              error={scenarioError}
-              onRun={() => void runScenario()}
+              hasForecastInputs={hasForecastInputs}
+              onNavigate={setActiveTab}
             />
           )}
+          {activeTab === "simulator" && <ScenarioPlanner apiUrl={API_URL} business={business} forecast={forecast}
+            delayModel={delayModel} draft={plannerDraft} onDraft={setPlannerDraft} />}
           {activeTab === "actions" && (
             <ActionsPage
               actions={actions}
               shortageProbability={forecast.shortage_prob}
+              apiUrl={API_URL}
+              delayModel={delayModel}
             />
           )}
 
           <footer className="mt-10 flex flex-col items-center justify-between gap-2 border-t border-slate-200/70 pt-5 text-[11px] text-slate-400 sm:flex-row">
-            <span>Demo uses synthetic data</span>
+            <span>{isSynthetic ? 'Synthetic demo data · Illustrative results only' : 'Forecast uses your entered records; verify obligations and cash balances.'}</span>
             <span>Built for clearer cash-flow decisions</span>
           </footer>
         </main>
@@ -485,12 +452,12 @@ function App() {
 function Brand() {
   return (
     <div className="flex items-center gap-3">
-      <div className="grid size-10 place-items-center rounded-[14px] bg-[#163b2e] text-white shadow-md shadow-emerald-950/15">
+      <div className="brand-symbol">
         <Factory size={21} strokeWidth={1.8} />
       </div>
       <div>
         <p className="text-[17px] font-bold tracking-tight text-slate-900">
-          cashflow<span className="text-emerald-700">.</span>
+          cashflow<span className="text-indigo-600">.</span>
         </p>
         <p className="text-[10px] font-medium tracking-[0.12em] text-slate-400">
           BUSINESS FINANCE
@@ -518,6 +485,7 @@ function TabButton({
       className={`nav-button ${active ? "nav-button-active" : ""} ${compact ? "nav-button-compact" : ""}`}
       onClick={onClick}
       type="button"
+      aria-current={active ? 'page' : undefined}
     >
       <Icon size={18} strokeWidth={active ? 2.2 : 1.8} />
       <span>{label}</span>
@@ -540,7 +508,7 @@ function PageHeading({
     <div className="mb-7 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
       <div>
         <p className="eyebrow">{eyebrow}</p>
-        <h1 className="mt-2 text-[27px] font-semibold tracking-[-0.04em] text-slate-900 sm:text-[32px]">
+        <h1 className="mt-1.5 text-[25px] font-semibold tracking-[-0.035em] text-slate-900 sm:text-[28px]">
           {title}
         </h1>
         <p className="mt-1.5 max-w-2xl text-sm leading-6 text-slate-500">
@@ -559,6 +527,7 @@ function Dashboard({
   runwayDays,
   firstShortage,
   tone,
+  hasForecastInputs,
   onNavigate,
 }: {
   business: Business;
@@ -567,6 +536,7 @@ function Dashboard({
   runwayDays: number | null;
   firstShortage: string | null;
   tone: "danger" | "warning" | "success";
+  hasForecastInputs: boolean;
   onNavigate: (tab: TabId) => void;
 }) {
   const cards: {
@@ -578,22 +548,24 @@ function Dashboard({
     trend?: "up" | "down";
   }[] = [
     {
-      label: "Opening cash",
+      label: "Available cash",
       value: money(business.opening_cash),
-      subtext: "Available at start of forecast",
+      subtext: "Cash recorded as of the observation date",
       icon: Wallet,
       accent: "green",
     },
     {
       label: "Cash runway",
-      value: runwayDays === null ? "90+" : `${runwayDays} days`,
+      value: !hasForecastInputs ? "—" : runwayDays === null ? "90+" : `${runwayDays} days`,
       subtext:
-        runwayDays === null
+        !hasForecastInputs
+          ? "Add expected receipts and planned outflows"
+          : runwayDays === null
           ? "Above safety floor for 90 days"
           : `Safety floor crossed ${formatDate(firstShortage)}`,
       icon: Gauge,
       accent: "blue",
-      trend: runwayDays === null ? "up" : "down",
+      trend: hasForecastInputs ? runwayDays === null ? "up" : "down" : undefined,
     },
     {
       label: "Overdue receivables",
@@ -604,8 +576,10 @@ function Dashboard({
     },
     {
       label: "Shortage probability",
-      value: probability(forecast.shortage_prob),
-      subtext: "Chance of falling below your safety floor",
+      value: hasForecastInputs ? probability(forecast.shortage_prob) : "—",
+      subtext: hasForecastInputs
+        ? "Chance of falling below your safety floor"
+        : "Add business records before interpreting this estimate",
       icon: AlertTriangle,
       accent: "purple",
     },
@@ -614,11 +588,14 @@ function Dashboard({
   return (
     <>
       <PageHeading
-        eyebrow="YOUR CASH AT A GLANCE"
-        title="Good morning, Namma Stitch"
-        description="Here’s what your cash flow is telling you today."
+        eyebrow="LIQUIDITY"
+        title="Cash overview"
+        description="Your current cash position, upcoming pressure points, and next steps."
         action={
-          <div className="flex w-fit items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600 shadow-sm">
+          <div
+            className="flex w-fit items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600 shadow-sm cursor-help"
+            title="Observation Date (as_of): In financial accounting, bank balances must be reconciled against actual bank statements, not guessed by a timer."
+          >
             <CalendarDays size={15} className="text-slate-400" />
             As of {formatDate(business.as_of)}
           </div>
@@ -637,23 +614,27 @@ function Dashboard({
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold leading-6 sm:text-[15px]">
-            {forecast.shortage_prob >= 0.5
+            {!hasForecastInputs
+              ? "Add business records to estimate cash risk"
+              : forecast.shortage_prob >= 0.5
               ? `Cash shortage likely around ${firstShortage ? shortDate(firstShortage) : "the forecast period"} (${probability(forecast.shortage_prob)} probability)`
               : forecast.shortage_prob >= 0.2
                 ? `Cash flow needs attention — ${probability(forecast.shortage_prob)} chance of falling below your safety floor`
                 : `Looking steady — just ${probability(forecast.shortage_prob)} chance of a cash shortage`}
           </p>
-          <p className="mt-0.5 text-xs text-white/75">
-            {forecast.shortage_prob >= 0.5
+          <p className="mt-0.5 text-xs opacity-80">
+            {!hasForecastInputs
+              ? "The current forecast reflects cash on hand only; it is not a risk assessment."
+              : forecast.shortage_prob >= 0.5
               ? "Take a look at your forecast and consider an action."
               : "Your 90-day forecast is based on expected receipts and upcoming obligations."}
           </p>
         </div>
         <button
           className="hidden items-center gap-1.5 rounded-xl bg-white/15 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/25 sm:flex"
-          onClick={() => onNavigate("forecast")}
+          onClick={() => onNavigate(hasForecastInputs ? "forecast" : "ledger")}
         >
-          View forecast <ArrowUpRight size={14} />
+          {hasForecastInputs ? "View forecast" : "Add records"} <ArrowUpRight size={14} />
         </button>
       </div>
 
@@ -663,23 +644,40 @@ function Dashboard({
         ))}
       </div>
 
-      <section className="panel-card mt-5 p-5 sm:p-6">
-        <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="eyebrow">90-DAY OUTLOOK</p>
-            <h2 className="mt-1 text-lg font-semibold tracking-tight text-slate-900">
-              Cash balance forecast
-            </h2>
+      {hasForecastInputs ? (
+        <section className="panel-card mt-5 p-5 sm:p-6">
+          <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="eyebrow">90-DAY OUTLOOK</p>
+              <h2 className="mt-1 text-lg font-semibold tracking-tight text-slate-900">
+                Cash balance forecast
+              </h2>
+            </div>
+            <button
+              className="button-secondary !px-3 !py-2 !text-xs"
+              onClick={() => onNavigate("forecast")}
+            >
+              Explore forecast <ArrowUpRight size={14} />
+            </button>
           </div>
-          <button
-            className="button-secondary !px-3 !py-2 !text-xs"
-            onClick={() => onNavigate("forecast")}
-          >
-            Explore forecast <ArrowUpRight size={14} />
+          <ForecastChart forecast={forecast} compact />
+        </section>
+      ) : (
+        <section className="panel-card mt-5 flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+          <div className="flex items-start gap-3">
+            <span className="kpi-icon driver-blue mt-0.5"><FileText size={18} /></span>
+            <div>
+              <p className="text-sm font-semibold text-slate-800">Your forecast needs business activity</p>
+              <p className="mt-1 max-w-2xl text-xs leading-5 text-slate-500">
+                Add open invoices, recurring expenses, supplier bills, or expected sales to see how cash may change over the next 90 days.
+              </p>
+            </div>
+          </div>
+          <button className="button-primary shrink-0" onClick={() => onNavigate("ledger")}>
+            Add invoices or plan <ArrowUpRight size={15} />
           </button>
-        </div>
-        <ForecastChart forecast={forecast} compact />
-      </section>
+        </section>
+      )}
 
       <div className="mt-5 grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
         <section className="panel-card p-5 sm:p-6">
@@ -699,24 +697,35 @@ function Dashboard({
         <section className="panel-card p-5 sm:p-6">
           <div className="flex items-start justify-between">
             <div>
-              <p className="eyebrow">YOUR NEXT BEST MOVE</p>
+              <p className="eyebrow">{overdueReceivables > 0 ? "COLLECTIONS TO REVIEW" : "NEXT STEP"}</p>
               <h2 className="mt-1 text-lg font-semibold tracking-tight">
-                Start with collections
+                {overdueReceivables > 0
+                  ? "Follow up on overdue invoices"
+                  : hasForecastInputs
+                    ? "Review upcoming payments"
+                    : "Build your cash plan"}
               </h2>
             </div>
             <div className="grid size-9 place-items-center rounded-xl bg-emerald-50 text-emerald-700">
-              <Banknote size={18} />
+              {overdueReceivables > 0 ? <Banknote size={18} /> : <CalendarDays size={18} />}
             </div>
           </div>
           <p className="mt-4 text-sm leading-6 text-slate-500">
-            Following up on overdue invoices can help close the gap before
-            upcoming payroll and supplier payments.
+            {overdueReceivables > 0
+              ? "Review overdue balances and decide which customers need a thoughtful follow-up."
+              : hasForecastInputs
+                ? "Check that recurring commitments and supplier due dates match your current plan."
+                : "Import invoices and add your regular outflows so the forecast reflects your business."}
           </p>
           <button
             className="button-primary mt-5 w-full sm:w-auto"
-            onClick={() => onNavigate("actions")}
+            onClick={() => onNavigate(overdueReceivables > 0 ? "actions" : hasForecastInputs ? "expenses" : "ledger")}
           >
-            View recommended actions <ArrowUpRight size={16} />
+            {overdueReceivables > 0
+              ? "View collection actions"
+              : hasForecastInputs
+                ? "Review expenses"
+                : "Add business records"} <ArrowUpRight size={16} />
           </button>
         </section>
       </div>
@@ -805,7 +814,7 @@ function OverdueList({ business }: { business: Business }) {
               </p>
             </div>
             <p className="shrink-0 text-sm font-semibold text-slate-800">
-              {money(invoice.amount)}
+              {money(invoice.amount - (invoice.received_amount ?? 0))}
             </p>
           </div>
         );
@@ -819,7 +828,17 @@ function OverdueList({ business }: { business: Business }) {
   );
 }
 
-function ForecastPage({ forecast }: { forecast: Forecast }) {
+function ForecastPage({
+  business,
+  forecast,
+  hasForecastInputs,
+  onNavigate,
+}: {
+  business: Business;
+  forecast: Forecast;
+  hasForecastInputs: boolean;
+  onNavigate: (tab: TabId) => void;
+}) {
   return (
     <>
       <PageHeading
@@ -827,12 +846,50 @@ function ForecastPage({ forecast }: { forecast: Forecast }) {
         title="Cash forecast"
         description="A 90-day view of your expected balance, with a range of outcomes and the safety floor to watch."
         action={
-          <span className="flex w-fit items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-500">
-            <span className="size-2 rounded-full bg-emerald-500" />
-            90-day outlook
-          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            <span
+              className="flex w-fit items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm cursor-help"
+              title="Observation Date (as_of): In financial accounting, bank balances must be reconciled against actual bank statements, not guessed by a timer."
+            >
+              <CalendarDays size={14} className="text-slate-400" />
+              As of {formatDate(business.as_of)}
+            </span>
+            <span className="flex w-fit items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-500">
+              <span className="size-2 rounded-full bg-emerald-500" />
+              90-day outlook
+            </span>
+          </div>
         }
       />
+      {!hasForecastInputs && (
+        <aside aria-label="Forecast inputs guidance" className="mb-6 rounded-2xl border border-amber-200 bg-amber-50/90 p-5 text-amber-950">
+          <div className="flex items-start gap-3">
+            <span className="kpi-icon driver-amber mt-0.5"><FileText size={18} /></span>
+            <div className="flex-1">
+              <h3 className="text-sm font-semibold text-amber-900">Your forecast currently has no business activity to project</h3>
+              <p className="mt-1 text-xs leading-5 text-amber-800">
+                The balance line below is flat because this workspace has no open invoices, recurring obligations, or supplier bills yet. Cash remains static at your opening cash balance.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2.5">
+                <button
+                  type="button"
+                  className="button-secondary !py-1.5 !px-3 !text-xs !bg-white"
+                  onClick={() => onNavigate('ledger')}
+                >
+                  Add or import invoices
+                </button>
+                <button
+                  type="button"
+                  className="button-secondary !py-1.5 !px-3 !text-xs !bg-white"
+                  onClick={() => onNavigate('expenses')}
+                >
+                  Add recurring expenses & bills
+                </button>
+              </div>
+            </div>
+          </div>
+        </aside>
+      )}
       <section className="panel-card p-4 sm:p-6">
         <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -858,10 +915,25 @@ function ForecastPage({ forecast }: { forecast: Forecast }) {
           </span>
           <span>
             <span className="font-semibold text-slate-700">Shortage chance</span>{" "}
-            {probability(forecast.shortage_prob)}
+            {hasForecastInputs ? probability(forecast.shortage_prob) : "—"}
           </span>
         </div>
       </section>
+      <aside aria-label="Observation date accounting principle" className="mt-4 rounded-xl border border-slate-200 bg-slate-50/80 p-4 text-xs leading-relaxed text-slate-600">
+        <div className="flex items-start gap-3">
+          <CalendarDays size={18} className="mt-0.5 shrink-0 text-slate-500" />
+          <div className="space-y-1">
+            <h3 className="font-semibold text-slate-800">
+              Observation Date Principle (<span className="font-mono text-slate-700">{business.as_of}</span>)
+            </h3>
+            <p className="text-slate-600">
+              <strong>It does not automatically tick forward with your computer&apos;s clock:</strong> The application anchors to an Observation Date (<code className="rounded bg-slate-200/70 px-1 py-0.5 font-mono text-[11px] text-slate-800">as_of: {business.as_of}</code>).
+              When tomorrow arrives, the app does not silently advance the date by 1 day and pretend bank debits happened.
+              In financial accounting, bank balances must be reconciled against actual bank statements, not guessed by a timer.
+            </p>
+          </div>
+        </div>
+      </aside>
       <section className="mt-6">
         <div className="mb-4">
           <p className="eyebrow">WHAT’S DRIVING THE FORECAST</p>
@@ -877,7 +949,9 @@ function ForecastPage({ forecast }: { forecast: Forecast }) {
           </div>
         ) : (
           <div className="panel-card p-5 text-sm text-slate-500">
-            No forecast drivers were returned by the API.
+            {!hasForecastInputs
+              ? "No cash pressure points or late payments can be calculated until invoices or expense obligations are added."
+              : "No significant cash pressure points or late payment drivers were identified."}
           </div>
         )}
       </section>
@@ -889,11 +963,11 @@ function ForecastLegend() {
   return (
     <div className="flex flex-wrap items-center gap-3 text-[10px] font-medium text-slate-500 sm:gap-4 sm:text-xs">
       <span className="flex items-center gap-1.5">
-        <span className="size-2.5 rounded-sm bg-emerald-100 ring-1 ring-emerald-200" />
+        <span className="size-2.5 rounded-sm bg-indigo-100 ring-1 ring-indigo-200" />
         P10–P90 range
       </span>
       <span className="flex items-center gap-1.5">
-        <span className="h-[2px] w-4 rounded bg-emerald-700" />
+        <span className="h-[2px] w-4 rounded bg-indigo-600" />
         P50
       </span>
       <span className="flex items-center gap-1.5">
@@ -916,9 +990,9 @@ function ForecastChart({
   return (
     <div className={compact ? "h-[250px] sm:h-[290px]" : "h-[320px] sm:h-[410px]"}>
       <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={data} margin={{ top: 8, right: 12, bottom: 0, left: 0 }}>
+        <ComposedChart data={data} margin={{ top: 12, right: 16, bottom: 4, left: 4 }}>
           <CartesianGrid
-            stroke="#e9eeea"
+            stroke="#eef0f4"
             strokeDasharray="3 5"
             vertical={false}
           />
@@ -932,6 +1006,18 @@ function ForecastChart({
             dy={10}
           />
           <YAxis
+            domain={[
+              (dataMin: number) => {
+                const floor = forecast.safety_floor ?? 0;
+                const min = Math.min(Number.isFinite(dataMin) ? dataMin : floor, floor);
+                return Math.floor(Math.max(0, min * 0.85));
+              },
+              (dataMax: number) => {
+                const floor = forecast.safety_floor ?? 0;
+                const max = Math.max(Number.isFinite(dataMax) ? dataMax : floor, floor, 1000);
+                return Math.ceil(max * 1.15);
+              },
+            ]}
             tickFormatter={(value: number) =>
               compactInr.format(value).replace(/\s/g, "")
             }
@@ -941,22 +1027,17 @@ function ForecastChart({
             tick={{ fill: "#94a3b8", fontSize: 10 }}
           />
           <Tooltip content={<ForecastTooltip />} />
-          {data.slice(0, -1).map((point, index) => {
-            const nextPoint = data[index + 1];
-            return nextPoint ? (
-              <ReferenceArea
-                key={point.date}
-                x1={point.date}
-                x2={nextPoint.date}
-                y1={point.p10}
-                y2={point.p90}
-                fill="#34a779"
-                fillOpacity={0.13}
-                stroke="none"
-                ifOverflow="hidden"
-              />
-            ) : null;
-          })}
+          <Area
+            dataKey="range"
+            type="monotone"
+            fill="#818cf8"
+            fillOpacity={0.18}
+            stroke="#818cf8"
+            strokeOpacity={0.25}
+            strokeWidth={1}
+            isAnimationActive={false}
+            name="P10–P90 range"
+          />
           <ReferenceLine
             y={forecast.safety_floor}
             stroke="#e97474"
@@ -972,14 +1053,14 @@ function ForecastChart({
           <Line
             dataKey="p50"
             type="monotone"
-            stroke="#16754f"
+            stroke="#4f46e5"
             strokeWidth={2.5}
             dot={false}
-            activeDot={{ r: 4, fill: "#16754f", stroke: "#fff", strokeWidth: 2 }}
+            activeDot={{ r: 4, fill: "#4f46e5", stroke: "#fff", strokeWidth: 2 }}
             name="P50"
             isAnimationActive={false}
           />
-        </AreaChart>
+        </ComposedChart>
       </ResponsiveContainer>
     </div>
   );
@@ -991,28 +1072,32 @@ function ForecastTooltip({
   label,
 }: {
   active?: boolean;
-  payload?: { dataKey: string; value: number }[];
+  payload?: { dataKey: string; value: number | [number, number]; payload?: Record<string, unknown> }[];
   label?: string;
 }) {
   if (!active || !payload?.length || !label) return null;
-  const values = new Map(payload.map((item) => [item.dataKey, item.value]));
+  const point = payload[0]?.payload as { p10?: number; p50?: number; p90?: number } | undefined;
+  const p10 = point?.p10 ?? 0;
+  const p50 = point?.p50 ?? 0;
+  const p90 = point?.p90 ?? 0;
+
   return (
     <div className="rounded-xl border border-slate-100 bg-white px-3.5 py-3 shadow-xl shadow-slate-900/10">
       <p className="mb-2 text-[11px] font-medium text-slate-400">
         {formatDate(label)}
       </p>
-      {["p10", "p50", "p90"].map((key) => {
-        const value = values.get(key);
-        if (value === undefined) return null;
-        return (
-          <div className="flex items-center justify-between gap-6 py-0.5" key={key}>
-            <span className="text-xs text-slate-500">{key.toUpperCase()}</span>
-            <span className="text-xs font-semibold text-slate-800">
-              {money(value)}
-            </span>
-          </div>
-        );
-      })}
+      <div className="flex items-center justify-between gap-6 py-0.5">
+        <span className="text-xs text-slate-500">P90 (OPTIMISTIC)</span>
+        <span className="text-xs font-semibold text-slate-800">{money(p90)}</span>
+      </div>
+      <div className="flex items-center justify-between gap-6 py-0.5">
+        <span className="text-xs text-indigo-600 font-semibold">P50 (MEDIAN)</span>
+        <span className="text-xs font-bold text-indigo-700">{money(p50)}</span>
+      </div>
+      <div className="flex items-center justify-between gap-6 py-0.5">
+        <span className="text-xs text-slate-500">P10 (PESSIMISTIC)</span>
+        <span className="text-xs font-semibold text-slate-800">{money(p10)}</span>
+      </div>
     </div>
   );
 }
@@ -1062,460 +1147,19 @@ function DriverCard({ driver }: { driver: ForecastDriver }) {
   );
 }
 
-function SimulatorPage({
-  business,
-  forecast,
-  selectedCustomer,
-  setSelectedCustomer,
-  customerDelay,
-  setCustomerDelay,
-  salesChange,
-  setSalesChange,
-  expenseAmount,
-  setExpenseAmount,
-  expenseDate,
-  setExpenseDate,
-  supplierDelay,
-  setSupplierDelay,
-  result,
-  loading,
-  error,
-  onRun,
-}: {
-  business: Business;
-  forecast: Forecast;
-  selectedCustomer: string;
-  setSelectedCustomer: (value: string) => void;
-  customerDelay: number;
-  setCustomerDelay: (value: number) => void;
-  salesChange: number;
-  setSalesChange: (value: number) => void;
-  expenseAmount: number;
-  setExpenseAmount: (value: number) => void;
-  expenseDate: string;
-  setExpenseDate: (value: string) => void;
-  supplierDelay: number;
-  setSupplierDelay: (value: number) => void;
-  result: ScenarioForecast | null;
-  loading: boolean;
-  error: string | null;
-  onRun: () => void;
-}) {
-  const selectedName =
-    business.customers.find((customer) => customer.id === selectedCustomer)
-      ?.name ?? "Customer";
-  const comparison = result
-    ? result.baseline.dates.map((date, index) => ({
-        date,
-        baseline: result.baseline.p50[index] ?? 0,
-        scenario: result.scenario.p50[index] ?? 0,
-      }))
-    : [];
-
-  return (
-    <>
-      <PageHeading
-        eyebrow="TRY A WHAT-IF"
-        title="Cash-flow simulator"
-        description="Explore how a late payment, a change in sales, or a surprise bill could affect your cash."
-      />
-      <div className="grid items-start gap-5 xl:grid-cols-[0.88fr_1.12fr]">
-        <section className="panel-card p-5 sm:p-6">
-          <div className="mb-5 flex items-center gap-3">
-            <div className="grid size-10 place-items-center rounded-xl bg-emerald-50 text-emerald-700">
-              <Sparkles size={19} />
-            </div>
-            <div>
-              <h2 className="text-base font-semibold">Scenario inputs</h2>
-              <p className="mt-0.5 text-xs text-slate-400">
-                Adjust the details to see what changes
-              </p>
-            </div>
-          </div>
-
-          <div className="space-y-5">
-            <div className="scenario-field">
-              <div className="flex items-center justify-between gap-3">
-                <label className="field-label" htmlFor="customer">
-                  Customer pays later
-                </label>
-                <span className="field-value">{customerDelay} days</span>
-              </div>
-              <div className="relative mt-2">
-                <select
-                  className="field-input appearance-none pr-9"
-                  id="customer"
-                  value={selectedCustomer}
-                  onChange={(event) => setSelectedCustomer(event.target.value)}
-                >
-                  {business.customers.map((customer) => (
-                    <option key={customer.id} value={customer.id}>
-                      {customer.name} · {customer.segment}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown
-                  className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
-                  size={15}
-                />
-              </div>
-              <RangeControl
-                label="Extra delay"
-                min={0}
-                max={60}
-                value={customerDelay}
-                unit="days"
-                onChange={setCustomerDelay}
-              />
-            </div>
-
-            <div className="scenario-field">
-              <div className="flex items-center justify-between gap-3">
-                <label className="field-label" htmlFor="sales-change">
-                  Sales change
-                </label>
-                <span className="field-value">
-                  {salesChange > 0 ? "+" : ""}
-                  {salesChange}%
-                </span>
-              </div>
-              <RangeControl
-                id="sales-change"
-                label="Monthly sales"
-                min={-40}
-                max={20}
-                value={salesChange}
-                unit="%"
-                onChange={setSalesChange}
-              />
-            </div>
-
-            <div className="scenario-field">
-              <div className="flex items-center justify-between gap-3">
-                <label className="field-label" htmlFor="expense-amount">
-                  Add an unexpected expense
-                </label>
-              </div>
-              <div className="mt-2 grid grid-cols-2 gap-2">
-                <div className="relative">
-                  <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-400">
-                    ₹
-                  </span>
-                  <input
-                    className="field-input pl-7"
-                    id="expense-amount"
-                    min={0}
-                    step={10000}
-                    type="number"
-                    value={expenseAmount}
-                    onChange={(event) =>
-                      setExpenseAmount(
-                        Math.max(0, Number(event.target.value) || 0),
-                      )
-                    }
-                  />
-                </div>
-                <input
-                  className="field-input"
-                  aria-label="Extra expense date"
-                  type="date"
-                  value={expenseDate}
-                  min={business.as_of}
-                  onChange={(event) => setExpenseDate(event.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="scenario-field">
-              <div className="flex items-center justify-between gap-3">
-                <label className="field-label" htmlFor="supplier-delay">
-                  Extend supplier terms
-                </label>
-                <span className="field-value">{supplierDelay} days</span>
-              </div>
-              <RangeControl
-                id="supplier-delay"
-                label="Extra time"
-                min={0}
-                max={30}
-                value={supplierDelay}
-                unit="days"
-                onChange={setSupplierDelay}
-              />
-            </div>
-          </div>
-
-          {error && (
-            <div className="mt-5 flex gap-2 rounded-xl border border-rose-100 bg-rose-50 p-3 text-xs leading-5 text-rose-700">
-              <AlertCircle className="mt-0.5 shrink-0" size={15} />
-              <span>{error}</span>
-            </div>
-          )}
-          <button
-            className="button-primary mt-6 w-full"
-            disabled={loading}
-            onClick={onRun}
-          >
-            {loading ? (
-              <LoaderCircle className="animate-spin" size={17} />
-            ) : (
-              <Play size={16} fill="currentColor" />
-            )}
-            {loading ? "Running scenario…" : "Run scenario"}
-          </button>
-        </section>
-
-        <div className="space-y-5">
-          {result ? (
-            <>
-              <section className="panel-card p-4 sm:p-6">
-                <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <p className="eyebrow">YOUR CUSTOM SCENARIO</p>
-                    <h2 className="mt-1 text-lg font-semibold tracking-tight">
-                      Baseline vs. what-if
-                    </h2>
-                  </div>
-                  <div className="flex flex-wrap gap-3 text-[11px] font-medium text-slate-500">
-                    <span className="flex items-center gap-1.5">
-                      <span className="h-[2px] w-4 bg-slate-400" />
-                      Baseline
-                    </span>
-                    <span className="flex items-center gap-1.5">
-                      <span className="h-[2px] w-4 bg-emerald-600" />
-                      Scenario
-                    </span>
-                  </div>
-                </div>
-                <ScenarioChart data={comparison} floor={forecast.safety_floor} />
-              </section>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <ScenarioComparisonCard
-                  label="Baseline shortage chance"
-                  probabilityValue={result.baseline.shortage_prob}
-                  date={result.baseline.first_shortage_date}
-                  tone="slate"
-                />
-                <ScenarioComparisonCard
-                  label="Scenario shortage chance"
-                  probabilityValue={result.scenario.shortage_prob}
-                  date={result.scenario.first_shortage_date}
-                  tone={shortageTone(result.scenario.shortage_prob)}
-                  change={result.scenario.shortage_prob - result.baseline.shortage_prob}
-                />
-              </div>
-            </>
-          ) : (
-            <div className="panel-card flex min-h-[420px] flex-col items-center justify-center px-8 py-12 text-center sm:min-h-[540px]">
-              <div className="grid size-14 place-items-center rounded-2xl bg-emerald-50 text-emerald-700">
-                <Sparkles size={24} />
-              </div>
-              <h2 className="mt-5 text-lg font-semibold text-slate-800">
-                See the impact before it happens
-              </h2>
-              <p className="mt-2 max-w-sm text-sm leading-6 text-slate-500">
-                Try a what-if with {selectedName}, adjust sales or add an
-                expense. Your baseline forecast will stay here for comparison.
-              </p>
-              <div className="mt-6 flex items-center gap-2 rounded-full bg-slate-50 px-3 py-2 text-xs text-slate-500">
-                <Gauge size={15} />
-                Current shortage chance{" "}
-                <span className="font-semibold text-slate-800">
-                  {probability(forecast.shortage_prob)}
-                </span>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    </>
-  );
-}
-
-function RangeControl({
-  id,
-  label,
-  min,
-  max,
-  value,
-  unit,
-  onChange,
-}: {
-  id?: string;
-  label: string;
-  min: number;
-  max: number;
-  value: number;
-  unit: string;
-  onChange: (value: number) => void;
-}) {
-  return (
-    <div className="mt-3">
-      <div className="flex justify-between text-[10px] text-slate-400">
-        <label htmlFor={id} className="sr-only">
-          {label}
-        </label>
-        <span>{min}{unit === "%" ? "%" : ` ${unit}`}</span>
-        <span>{max}{unit === "%" ? "%" : ` ${unit}`}</span>
-      </div>
-      <input
-        className="range-control mt-1.5 w-full"
-        id={id}
-        max={max}
-        min={min}
-        type="range"
-        value={value}
-        onChange={(event) => onChange(Number(event.target.value))}
-      />
-    </div>
-  );
-}
-
-function ScenarioChart({
-  data,
-  floor,
-}: {
-  data: { date: string; baseline: number; scenario: number }[];
-  floor: number;
-}) {
-  return (
-    <div className="h-[300px] sm:h-[360px]">
-      <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
-          <CartesianGrid
-            stroke="#e9eeea"
-            strokeDasharray="3 5"
-            vertical={false}
-          />
-          <XAxis
-            dataKey="date"
-            tickFormatter={shortDate}
-            tickLine={false}
-            axisLine={false}
-            minTickGap={32}
-            tick={{ fill: "#94a3b8", fontSize: 10 }}
-            dy={9}
-          />
-          <YAxis
-            tickFormatter={(value: number) =>
-              compactInr.format(value).replace(/\s/g, "")
-            }
-            tickLine={false}
-            axisLine={false}
-            width={65}
-            tick={{ fill: "#94a3b8", fontSize: 10 }}
-          />
-          <Tooltip content={<ScenarioTooltip />} />
-          <ReferenceLine
-            y={floor}
-            stroke="#e97474"
-            strokeDasharray="6 5"
-            strokeWidth={1.4}
-          />
-          <Line
-            dataKey="baseline"
-            name="Baseline"
-            type="monotone"
-            stroke="#94a3b8"
-            strokeDasharray="5 5"
-            strokeWidth={2}
-            dot={false}
-            activeDot={{ r: 4, fill: "#94a3b8", stroke: "#fff", strokeWidth: 2 }}
-            isAnimationActive={false}
-          />
-          <Line
-            dataKey="scenario"
-            name="Scenario"
-            type="monotone"
-            stroke="#168157"
-            strokeWidth={2.5}
-            dot={false}
-            activeDot={{ r: 4, fill: "#168157", stroke: "#fff", strokeWidth: 2 }}
-            isAnimationActive={false}
-          />
-        </LineChart>
-      </ResponsiveContainer>
-    </div>
-  );
-}
-
-function ScenarioTooltip({
-  active,
-  payload,
-  label,
-}: {
-  active?: boolean;
-  payload?: { dataKey: string; value: number }[];
-  label?: string;
-}) {
-  if (!active || !payload?.length || !label) return null;
-  return (
-    <div className="rounded-xl border border-slate-100 bg-white px-3.5 py-3 shadow-xl shadow-slate-900/10">
-      <p className="mb-2 text-[11px] font-medium text-slate-400">
-        {formatDate(label)}
-      </p>
-      {payload.map((item) => (
-        <div
-          className="flex items-center justify-between gap-6 py-0.5"
-          key={item.dataKey}
-        >
-          <span className="text-xs capitalize text-slate-500">
-            {item.dataKey}
-          </span>
-          <span className="text-xs font-semibold text-slate-800">
-            {money(item.value)}
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function ScenarioComparisonCard({
-  label,
-  probabilityValue,
-  date,
-  tone,
-  change,
-}: {
-  label: string;
-  probabilityValue: number;
-  date: string | null;
-  tone: string;
-  change?: number;
-}) {
-  return (
-    <div className={`comparison-card comparison-${tone} p-4 sm:p-5`}>
-      <p className="text-xs font-medium text-slate-500">{label}</p>
-      <div className="mt-2 flex items-end justify-between gap-2">
-        <p className="text-2xl font-semibold tracking-tight text-slate-900">
-          {probability(probabilityValue)}
-        </p>
-        {change !== undefined && change !== 0 && (
-          <span
-            className={`mb-1 text-xs font-semibold ${
-              change > 0 ? "text-rose-600" : "text-emerald-700"
-            }`}
-          >
-            {change > 0 ? "+" : ""}
-            {Math.round(change * 100)} pts
-          </span>
-        )}
-      </div>
-      <p className="mt-1 text-[11px] text-slate-400">
-        First below-floor day: {formatDate(date)}
-      </p>
-    </div>
-  );
-}
-
 function ActionsPage({
   actions,
   shortageProbability,
+  apiUrl,
+  delayModel,
 }: {
   actions: Action[];
   shortageProbability: number;
+  apiUrl: string;
+  delayModel: string;
 }) {
+  const [view, setView] = useState<'collections' | 'other'>('collections');
+  const otherActions = actions.filter(action => action.type !== 'chase_invoice');
   return (
     <>
       <PageHeading
@@ -1529,6 +1173,8 @@ function ActionsPage({
           </span>
         }
       />
+      <nav className="section-tabs" aria-label="Corrective action types"><button aria-pressed={view === 'collections'} onClick={() => setView('collections')}>Prioritised collections</button><button aria-pressed={view === 'other'} onClick={() => setView('other')}>Other corrective actions</button></nav>
+      {view === 'collections' ? <CollectionsPanel apiUrl={apiUrl} delayModel={delayModel} /> : <>
       <div className="mb-5 flex items-center gap-3 rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4">
         <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-white text-emerald-700">
           <Gauge size={17} />
@@ -1538,13 +1184,13 @@ function ActionsPage({
           <span className="font-semibold text-slate-900">
             {probability(shortageProbability)}
           </span>
-          . The actions below show their estimated probability after taking
-          action.
+          . The actions below estimate probability if their assumptions hold.
+          They do not establish that an action or reminder will succeed.
         </p>
       </div>
-      {actions.length ? (
+      {otherActions.length ? (
         <div className="grid gap-3 xl:grid-cols-2">
-          {actions.map((action, index) => (
+          {otherActions.map((action, index) => (
             <ActionCard
               action={action}
               before={shortageProbability}
@@ -1558,6 +1204,7 @@ function ActionsPage({
           No actions were returned by the API.
         </div>
       )}
+      </>}
     </>
   );
 }
@@ -1653,9 +1300,9 @@ function RiskBadge({ risk }: { risk: Action["risk"] }) {
 
 function LoadingScreen() {
   return (
-    <main className="grid min-h-screen place-items-center bg-[#f6f8f5] px-5">
+    <main className="grid min-h-screen place-items-center bg-[#f7f8fa] px-5">
       <div className="text-center">
-        <div className="mx-auto grid size-14 place-items-center rounded-2xl bg-[#163b2e] text-white shadow-lg shadow-emerald-950/15">
+        <div className="mx-auto grid size-14 place-items-center rounded-2xl bg-[#4f46e5] text-white shadow-lg shadow-emerald-950/15">
           <LoaderCircle className="animate-spin" size={25} />
         </div>
         <p className="mt-4 text-sm font-medium text-slate-600">

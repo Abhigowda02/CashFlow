@@ -7,7 +7,7 @@ import tempfile
 import joblib
 import pandas as pd
 
-from .data import REQUIRED, build_training_table, load_csv
+from .data import REQUIRED, build_training_table, load_csv, validate_table
 from .delay_model import DEFAULT_ARTIFACT, fit
 
 
@@ -59,12 +59,17 @@ def training_table_from_csv(path, as_of=None):
     for index, row in raw.iterrows():
         invoices.append(dict(id=f'{row.business_code}:{row.doc_id}', customer_id=customer_ids.loc[index],
                              amount=amounts.loc[index], issue_date=issue.loc[index], due_date=due.loc[index],
+                             currency=row.get('invoice_currency') if pd.notna(row.get('invoice_currency')) else 'UNKNOWN',
                              status='paid' if closed.loc[index] else 'open',
                              paid_date=paid.loc[index] if closed.loc[index] else None))
-    table = build_training_table(dict(as_of=snapshot, customers=customers, invoices=invoices))
-    table.attrs['source_rows'] = source_rows
-    table.attrs['duplicates_removed'] = table.attrs['source_rows'] - len(raw)
-    return table
+    table = build_training_table(dict(as_of=snapshot, customers=customers, invoices=invoices,
+        amount_unit_verified=False, amount_semantics='unknown', currency_provenance='unverified_export_labels',
+        source_kind='unverified_export',
+        source_provenance='Original publisher and total_open_amount semantics are not verified',
+        observation_date_source='explicit_user_snapshot' if as_of is not None else 'inferred_latest_observed'))
+    table['source_rows'] = source_rows
+    table['duplicates_removed'] = source_rows-len(raw)
+    return validate_table(table)
 
 
 def train(csv_path, as_of=None, artifact_path=DEFAULT_ARTIFACT):
@@ -87,6 +92,9 @@ def train(csv_path, as_of=None, artifact_path=DEFAULT_ARTIFACT):
     if 'as_of' in table:
         print(f'Observation date: {pd.Timestamp(table.as_of.max()).date()}; '
               f'duplicates removed: {table.attrs.get("duplicates_removed", 0):,}.')
+    print(f'Amount feature: {model.amount_feature_policy}.')
+    print('Currency labels: ' + ', '.join(sorted(table.currency.unique())) + '; no currency conversion performed.')
+    print('Validation: not yet validated on representative real businesses.')
     print(f'Early-payment shift: {model.shift:g} days. Saved: {target}')
     return model
 

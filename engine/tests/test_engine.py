@@ -24,6 +24,7 @@ import sys
 import time
 import types
 import unittest
+from unittest.mock import patch
 import pytest
 
 from engine import compare_scenario, format_inr, generate_business, rank_actions, run_forecast
@@ -310,11 +311,9 @@ class TestEngineContract(unittest.TestCase):
 
     def test_delay_model_fallback_when_ml_missing(self):
         """When ml/ is missing, delay_model='survival' falls back to empirical without error."""
-        # Ensure ml is not in sys.modules
-        sys.modules.pop("ml.delay_model", None)
-        sys.modules.pop("ml", None)
-
-        fc = run_forecast(self.business, n_sims=200, seed=42, delay_model="survival")
+        # None explicitly blocks imports even when ml/ exists on disk.
+        with patch.dict(sys.modules, {"ml.delay_model": None}):
+            fc = run_forecast(self.business, n_sims=200, seed=42, delay_model="survival")
         validate_forecast(fc)
         self.assertEqual(fc["meta"]["delay_model_used"], "empirical")
 
@@ -341,8 +340,8 @@ class TestEngineContract(unittest.TestCase):
         stub_dm.sample_delay = stub_sample_delay
         stub_ml.delay_model = stub_dm
 
-        sys.modules["ml"] = stub_ml
-        sys.modules["ml.delay_model"] = stub_dm
+        modules = patch.dict(sys.modules, {"ml": stub_ml, "ml.delay_model": stub_dm})
+        modules.start()
 
         try:
             fc = run_forecast(self.business, n_sims=200, seed=42, delay_model="survival")
@@ -351,8 +350,7 @@ class TestEngineContract(unittest.TestCase):
             self.assertGreater(sample_call_count, 0, "sample_delay was not called!")
             self.assertEqual(fc["meta"]["delay_model_used"], "survival")
         finally:
-            sys.modules.pop("ml.delay_model", None)
-            sys.modules.pop("ml", None)
+            modules.stop()
 
     def test_delay_model_fallback_on_fit_exception(self):
         """If ml.delay_model.fit raises an exception, engine silently falls back to empirical."""
@@ -366,16 +364,15 @@ class TestEngineContract(unittest.TestCase):
         stub_dm.sample_delay = lambda *args, **kwargs: 10
         stub_ml.delay_model = stub_dm
 
-        sys.modules["ml"] = stub_ml
-        sys.modules["ml.delay_model"] = stub_dm
+        modules = patch.dict(sys.modules, {"ml": stub_ml, "ml.delay_model": stub_dm})
+        modules.start()
 
         try:
             fc = run_forecast(self.business, n_sims=200, seed=42, delay_model="survival")
             validate_forecast(fc)
             self.assertEqual(fc["meta"]["delay_model_used"], "empirical")
         finally:
-            sys.modules.pop("ml.delay_model", None)
-            sys.modules.pop("ml", None)
+            modules.stop()
 
     # =========================================================================
     # Check Contract Validator Tests per Task 5

@@ -62,10 +62,15 @@ def test_csv_evaluation(tmp_path, monkeypatch):
     monkeypatch.setattr(module, 'fit', capture)
     path = tmp_path / 'canonical.csv'
     build_training_table(business()).to_csv(path, index=False)
-    result = evaluate(path, tmp_path)
-    assert len(result) == 18
+    result = evaluate(path, tmp_path, source_kind='synthetic')
+    assert len(result) == 99
+    assert result.fold.nunique() == 3
+    assert result.evidence_status.eq('synthetic_pipeline_smoke_only').all()
+    assert set(result.metric) == {'mae_paid_days', 'brier_ipcw', 'share_paid_ipcw'}
+    assert len(captured) == 3
     assert (tmp_path / 'calibration.png').is_file()
     assert (tmp_path / 'metrics.csv').is_file()
+    assert (tmp_path / 'report.json').is_file()
     cutoff = pd.Timestamp(result.train_cutoff.iloc[0])
     training = captured[0]
     assert (training.issue_date < cutoff).all()
@@ -86,3 +91,20 @@ def test_future_payment_is_censored():
     b = business()
     b['invoices'][0]['paid_date'] = '2022-01-01'
     assert build_training_table(b).iloc[0].event == 0
+
+
+def test_distribution_cache_does_not_change_samples(monkeypatch):
+    b = business()
+    model = fit(build_training_table(b), use_saved=False)
+    invoice, customer = b['invoices'][-1], b['customers'][0]
+    calls = []
+    compute = model._compute_distribution
+    def record(*args):
+        calls.append(1)
+        return compute(*args)
+    monkeypatch.setattr(model, '_compute_distribution', record)
+    first = model.sample_delay(invoice, customer, np.random.default_rng(19))
+    assert model.sample_delay(invoice, customer, np.random.default_rng(19)) == first
+    assert len(calls) == 1
+    model.sample_delay(dict(invoice, amount=invoice['amount']+1), customer, np.random.default_rng(19))
+    assert len(calls) == 2

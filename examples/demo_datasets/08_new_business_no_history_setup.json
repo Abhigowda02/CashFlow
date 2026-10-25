@@ -1,0 +1,62 @@
+{
+  "synthetic": true,
+  "name": "Demo New business without payment history (Synthetic)",
+  "as_of": "2026-10-25",
+  "opening_cash": 80000,
+  "safety_floor": 50000,
+  "obligations": [
+    {
+      "id": "demo-payroll",
+      "name": "Payroll",
+      "amount": 90000,
+      "frequency": "monthly",
+      "day_of_month": 1,
+      "category": "salary"
+    },
+    {
+      "id": "demo-rent",
+      "name": "Rent",
+      "amount": 20000,
+      "frequency": "monthly",
+      "day_of_month": 5,
+      "category": "rent"
+    },
+    {
+      "id": "demo-emi",
+      "name": "EMI",
+      "amount": 10000,
+      "frequency": "monthly",
+      "day_of_month": 10,
+      "category": "loan"
+    },
+    {
+      "id": "demo-tax",
+      "name": "Tax provision (illustrative date)",
+      "amount": 15000,
+      "frequency": "monthly",
+      "day_of_month": 20,
+      "category": "tax"
+    }
+  ],
+  "supplier_bills": [
+    {
+      "id": "demo-supplier-1",
+      "supplier": "Demo Supplier 1",
+      "amount": 46666,
+      "due_date": "2026-10-28",
+      "is_msme": true,
+      "status": "open"
+    },
+    {
+      "id": "demo-supplier-2",
+      "supplier": "Demo Supplier 2",
+      "amount": 23333,
+      "due_date": "2026-11-11",
+      "is_msme": false,
+      "status": "open"
+    }
+  ],
+  "monthly_sales": 150000,
+  "terms_days": 30,
+  "monthly_noise_pct": 25
+}

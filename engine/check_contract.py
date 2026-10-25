@@ -16,6 +16,7 @@ CLI:
 import datetime
 import sys
 import types
+from unittest.mock import patch
 from typing import Any
 
 
@@ -478,7 +479,8 @@ def check_all() -> None:
             sys.modules.pop("ml", None)
 
     # 6. Fallback test: when ml is absent, survival gracefully falls back to empirical
-    fc_fallback = run_forecast(business, seed=42, delay_model="survival")
+    with patch.dict(sys.modules, {"ml.delay_model": None}):
+        fc_fallback = run_forecast(business, seed=42, delay_model="survival")
     validate_forecast(fc_fallback)
     if fc_fallback.get("meta", {}).get("delay_model_used") != "empirical":
         raise ContractValidationError(

@@ -1,0 +1,140 @@
+{
+  "source": {
+    "path": "ml/results/synthetic.csv",
+    "sha256": "48329678b837a1362dc2b2c86090979bc3eb279d5ed8b29410fa6ce13cdc171f",
+    "source_kind": "synthetic",
+    "input_source_kinds": [
+      "unknown"
+    ],
+    "evidence_status": "synthetic_pipeline_smoke_only",
+    "invoice_rows": 40,
+    "customer_count": 1,
+    "observed_paid": 39,
+    "censored": 1,
+    "issue_date_start": "2020-01-01",
+    "issue_date_end": "2021-01-25",
+    "observation_date_start": "2021-03-01",
+    "observation_date_end": "2021-03-01",
+    "source_provenance": [
+      "Original publisher/source not verified"
+    ],
+    "observation_date_source": [
+      "unspecified"
+    ],
+    "currency": [
+      "UNKNOWN"
+    ],
+    "currency_provenance": [
+      "unspecified"
+    ],
+    "amount_unit_verified": [
+      "False"
+    ],
+    "amount_semantics": [
+      "unknown"
+    ],
+    "source_rows": [],
+    "duplicates_removed": []
+  },
+  "validation_status": "not_validated_on_representative_real_businesses",
+  "requested_folds": 3,
+  "emitted_folds": 3,
+  "completed_folds": 3,
+  "folds": [
+    {
+      "fold": 1,
+      "train_cutoff": "2020-07-19",
+      "train_n": 20,
+      "test_n": 6,
+      "train_paid": 19,
+      "train_censored": 1,
+      "test_paid": 6,
+      "train_start": "2020-01-01",
+      "train_end": "2020-07-09",
+      "test_censored": 0,
+      "test_start": "2020-07-19",
+      "test_end": "2020-09-07",
+      "source": "ml/results/synthetic.csv",
+      "source_sha256": "48329678b837a1362dc2b2c86090979bc3eb279d5ed8b29410fa6ce13cdc171f",
+      "evidence_status": "synthetic_pipeline_smoke_only",
+      "validation_status": "not_validated_on_representative_real_businesses",
+      "status": "completed",
+      "amount_feature_used": false,
+      "amount_feature_policy": "Excluded: amount units have not been explicitly confirmed"
+    },
+    {
+      "fold": 2,
+      "train_cutoff": "2020-09-17",
+      "train_n": 26,
+      "test_n": 7,
+      "train_paid": 25,
+      "train_censored": 1,
+      "test_paid": 7,
+      "train_start": "2020-01-01",
+      "train_end": "2020-09-07",
+      "test_censored": 0,
+      "test_start": "2020-09-17",
+      "test_end": "2020-11-16",
+      "source": "ml/results/synthetic.csv",
+      "source_sha256": "48329678b837a1362dc2b2c86090979bc3eb279d5ed8b29410fa6ce13cdc171f",
+      "evidence_status": "synthetic_pipeline_smoke_only",
+      "validation_status": "not_validated_on_representative_real_businesses",
+      "status": "completed",
+      "amount_feature_used": false,
+      "amount_feature_policy": "Excluded: amount units have not been explicitly confirmed"
+    },
+    {
+      "fold": 3,
+      "train_cutoff": "2020-11-26",
+      "train_n": 33,
+      "test_n": 7,
+      "train_paid": 32,
+      "train_censored": 1,
+      "test_paid": 6,
+      "train_start": "2020-01-01",
+      "train_end": "2020-11-16",
+      "test_censored": 1,
+      "test_start": "2020-11-26",
+      "test_end": "2021-01-25",
+      "source": "ml/results/synthetic.csv",
+      "source_sha256": "48329678b837a1362dc2b2c86090979bc3eb279d5ed8b29410fa6ce13cdc171f",
+      "evidence_status": "synthetic_pipeline_smoke_only",
+      "validation_status": "not_validated_on_representative_real_businesses",
+      "status": "completed",
+      "amount_feature_used": false,
+      "amount_feature_policy": "Excluded: amount units have not been explicitly confirmed"
+    }
+  ],
+  "offsets_days": [
+    10,
+    20,
+    30,
+    45,
+    60
+  ],
+  "bootstrap_replicates": 200,
+  "seed": 42,
+  "censoring_method": "training_reverse_KM_event_before_censor_ties",
+  "min_censor_survival": 0.05,
+  "limitations": [
+    "Synthetic data is a pipeline smoke test, never evidence of predictive accuracy.",
+    "No dataset here establishes validation on representative real businesses.",
+    "IPCW assumes independent censoring and a censoring distribution transferable from training to test; administrative or informative censoring can violate this.",
+    "Unsupported horizons and censor-survival probabilities at or below 0.05 are unavailable, not zero-error results. We do not clip large weights.",
+    "Paid-only MAE excludes unknown settlement times and is selection biased; it is secondary.",
+    "Bootstrap intervals condition on the fitted model and training censoring estimate; they do not include fitting uncertainty, temporal dependence or censoring-model error.",
+    "IPCW observed-share estimates and their intervals can exceed one in finite samples; they are not silently clipped.",
+    "The exercise predicts invoice final-settlement delay at issue using history frozen at each origin; it does not validate cash-shortage probabilities or collection actions."
+  ],
+  "outputs": [
+    "metrics.csv",
+    "calibration.png",
+    "report.json"
+  ],
+  "environment": {
+    "python": "3.12.3",
+    "numpy": "1.26.4",
+    "pandas": "2.3.3",
+    "lifelines": "0.30.3"
+  }
+}

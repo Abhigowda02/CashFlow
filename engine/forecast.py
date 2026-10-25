@@ -7,6 +7,7 @@ Per contracts/CONTRACT.md and ADDENDUM v1.
 
 import copy
 import datetime
+from .schedules import monthly_occurrences
 import numpy as np
 
 
@@ -100,7 +101,7 @@ def _run_forecast_core(
 
     sales_plan = business.get("sales_plan") or {}
     monthly_amt = float(sales_plan.get("monthly_amount", 1400000) or 0)
-    terms_days = int(sales_plan.get("terms_days", 30) or 30)
+    terms_days = int(sales_plan.get("terms_days", 30) or 0)
     noise_pct = float(sales_plan.get("monthly_noise_pct", 15) or 0)
 
     customers = business.get("customers") or []
@@ -193,11 +194,8 @@ def _run_forecast_core(
 
     # 1. Outflows: Obligations (Payroll, Rent, EMI, GST)
     obligations = business.get("obligations") or []
-    for d in range(n_days):
-        day_date = as_of + datetime.timedelta(days=d)
-        for ob in obligations:
-            if day_date.day == ob.get("day_of_month"):
-                outflows[:, d] += int(ob.get("amount", 0))
+    for occurrence in monthly_occurrences(obligations, business['as_of'], n_days):
+        outflows[:, occurrence['days_until']] += occurrence['amount']
 
     # 2. Outflows: Extra expenses from scenario
     for exp in extra_expenses:
@@ -227,12 +225,16 @@ def _run_forecast_core(
     # If survival mode: fit model once per run (cached)
     survival_model = None
     sample_delay_fn = None
+    sample_after_fn = None
     if delay_model == "survival":
         from ml.delay_model import fit, sample_delay
         survival_model = fit(business)
-        sample_delay_fn = sample_delay
+        # Bind the returned model: concurrent requests must not share _active.
+        sample_delay_fn = getattr(survival_model, "sample_delay", sample_delay)
+        sample_after_fn = getattr(survival_model, "sample_after", None)
 
     # 4. Inflows: Open invoices
+    collection_records = []
     for inv in open_invoices:
         cid = inv.get("customer_id")
         cust_obj = cust_map.get(cid, {"id": cid, "name": cid, "segment": "small"})
@@ -250,16 +252,25 @@ def _run_forecast_core(
         extra_days = customer_extra_days.get(cid, 0)
         accelerate_days = int(inv.get("accelerate_days", 0))
         override_pay_day = inv.get("override_pay_day")
+        collection_record = None
+        if business.get('_collection_diagnostics') and is_overdue and inv_amt > 0:
+            collection_record = dict(invoice_id=inv['id'], customer_id=cid, amount=inv_amt,
+                                     pay_days=np.empty(n_sims, dtype=np.int64))
+            collection_records.append(collection_record)
 
         if delay_model == "survival" and sample_delay_fn is not None:
             for s in range(n_sims):
-                try:
-                    sampled_delay = sample_delay_fn(inv, cust_obj, rng, days_overdue)
-                except TypeError:
-                    sampled_delay = sample_delay_fn(inv, cust_obj, rng, days_overdue, model=survival_model)
-                cand_pay = due_d + datetime.timedelta(days=int(sampled_delay) + extra_days)
+                if sample_after_fn is not None:
+                    sampled_delay = sample_after_fn(inv, cust_obj, rng, (as_of - due_d).days)
+                else:
+                    try:
+                        sampled_delay = sample_delay_fn(inv, cust_obj, rng, days_overdue)
+                    except TypeError:
+                        sampled_delay = sample_delay_fn(inv, cust_obj, rng, days_overdue, model=survival_model)
+                cand_pay = due_d + datetime.timedelta(days=int(sampled_delay))
                 if cand_pay <= as_of:
                     cand_pay = as_of + datetime.timedelta(days=1)
+                cand_pay += datetime.timedelta(days=extra_days)
 
                 if override_pay_day is not None:
                     final_pay = as_of + datetime.timedelta(days=int(override_pay_day))
@@ -271,6 +282,8 @@ def _run_forecast_core(
                     final_pay = cand_pay
 
                 idx = (final_pay - as_of).days
+                if collection_record is not None:
+                    collection_record['pay_days'][s] = idx
                 if 0 <= idx < n_days:
                     inflows[s, idx] += inv_amt
         else:
@@ -282,12 +295,13 @@ def _run_forecast_core(
                 pool = segment_delays.get(seg, [15])
 
             for s in range(n_sims):
-                # Deterministic RNG consumption per invoice to maintain synchronization
+                # Condition baseline draws before applying scenario delays so the
+                # rejection loop consumes the same RNG draws in both forecasts.
                 sampled_pay = None
                 for _ in range(10):
                     base_delay = int(rng.choice(pool))
                     jitter = int(rng.integers(-2, 3))
-                    cand_pay = due_d + datetime.timedelta(days=base_delay + jitter + extra_days)
+                    cand_pay = due_d + datetime.timedelta(days=base_delay + jitter)
                     if not is_overdue or cand_pay > as_of:
                         sampled_pay = cand_pay
                         break
@@ -295,6 +309,9 @@ def _run_forecast_core(
                 if sampled_pay is None or sampled_pay <= as_of:
                     rand_offset = int(rng.integers(1, 15))
                     sampled_pay = as_of + datetime.timedelta(days=rand_offset)
+
+                # Delays also shift fallback receipts for very overdue invoices.
+                sampled_pay += datetime.timedelta(days=extra_days)
 
                 # Apply action adjustments after RNG draw
                 if override_pay_day is not None:
@@ -307,6 +324,8 @@ def _run_forecast_core(
                     final_pay = sampled_pay
 
                 idx = (final_pay - as_of).days
+                if collection_record is not None:
+                    collection_record['pay_days'][s] = idx
                 if 0 <= idx < n_days:
                     inflows[s, idx] += inv_amt
 
@@ -414,7 +433,7 @@ def _run_forecast_core(
         for c in driver_candidates[:3]
     ]
 
-    return {
+    result = {
         "dates": dates,
         "p10": p10,
         "p50": p50,
@@ -430,6 +449,10 @@ def _run_forecast_core(
             "seed": seed,
         },
     }
+    if business.get('_collection_diagnostics'):
+        # Private, in-process diagnostics. Never returned by finance API routes.
+        result['_collection_diagnostics'] = dict(balance=balance, invoices=collection_records)
+    return result
 
 
 def compare_scenario(

@@ -1,0 +1,62 @@
+{
+  "synthetic": true,
+  "name": "Demo Textile wholesale (Synthetic)",
+  "as_of": "2026-10-25",
+  "opening_cash": 150000,
+  "safety_floor": 75000,
+  "obligations": [
+    {
+      "id": "demo-payroll",
+      "name": "Payroll",
+      "amount": 220000,
+      "frequency": "monthly",
+      "day_of_month": 1,
+      "category": "salary"
+    },
+    {
+      "id": "demo-rent",
+      "name": "Rent",
+      "amount": 35000,
+      "frequency": "monthly",
+      "day_of_month": 5,
+      "category": "rent"
+    },
+    {
+      "id": "demo-emi",
+      "name": "EMI",
+      "amount": 25000,
+      "frequency": "monthly",
+      "day_of_month": 10,
+      "category": "loan"
+    },
+    {
+      "id": "demo-tax",
+      "name": "Tax provision (illustrative date)",
+      "amount": 15000,
+      "frequency": "monthly",
+      "day_of_month": 20,
+      "category": "tax"
+    }
+  ],
+  "supplier_bills": [
+    {
+      "id": "demo-supplier-1",
+      "supplier": "Demo Supplier 1",
+      "amount": 120000,
+      "due_date": "2026-10-28",
+      "is_msme": true,
+      "status": "open"
+    },
+    {
+      "id": "demo-supplier-2",
+      "supplier": "Demo Supplier 2",
+      "amount": 60000,
+      "due_date": "2026-11-11",
+      "is_msme": false,
+      "status": "open"
+    }
+  ],
+  "monthly_sales": 450000,
+  "terms_days": 30,
+  "monthly_noise_pct": 20
+}

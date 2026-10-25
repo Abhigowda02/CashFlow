@@ -1,0 +1,25 @@
+invoice_id,customer_id,customer_name,segment,amount,issue_date,due_date,status,received_amount,paid_date,currency
+DEMO-NEW-C01-O001,NEW-C01,Demo New business without payment history Buyer 01,small,40500,2026-09-11,2026-10-11,open,10125,,INR
+DEMO-NEW-C02-O003,NEW-C02,Demo New business without payment history Buyer 02,corporate,51500,2026-09-11,2026-10-11,open,0,,INR
+DEMO-NEW-C04-O002,NEW-C04,Demo New business without payment history Buyer 04,small,51500,2026-09-11,2026-10-11,open,25750,,INR
+DEMO-NEW-C06-O001,NEW-C06,Demo New business without payment history Buyer 06,government,23000,2026-09-11,2026-10-11,open,0,,INR
+DEMO-NEW-C07-O003,NEW-C07,Demo New business without payment history Buyer 07,small,20000,2026-09-11,2026-10-11,open,5000,,INR
+DEMO-NEW-C02-O001,NEW-C02,Demo New business without payment history Buyer 02,corporate,19000,2026-09-20,2026-10-20,open,0,,INR
+DEMO-NEW-C03-O003,NEW-C03,Demo New business without payment history Buyer 03,government,33000,2026-09-20,2026-10-20,open,8250,,INR
+DEMO-NEW-C05-O002,NEW-C05,Demo New business without payment history Buyer 05,corporate,59500,2026-09-20,2026-10-20,open,0,,INR
+DEMO-NEW-C07-O001,NEW-C07,Demo New business without payment history Buyer 07,small,38000,2026-09-20,2026-10-20,open,0,,INR
+DEMO-NEW-C08-O003,NEW-C08,Demo New business without payment history Buyer 08,corporate,18500,2026-09-20,2026-10-20,open,0,,INR
+DEMO-NEW-C01-O002,NEW-C01,Demo New business without payment history Buyer 01,small,49500,2026-09-25,2026-10-25,open,0,,INR
+DEMO-NEW-C03-O001,NEW-C03,Demo New business without payment history Buyer 03,government,25500,2026-09-25,2026-10-25,open,0,,INR
+DEMO-NEW-C04-O003,NEW-C04,Demo New business without payment history Buyer 04,small,16500,2026-09-25,2026-10-25,open,0,,INR
+DEMO-NEW-C06-O002,NEW-C06,Demo New business without payment history Buyer 06,government,63000,2026-09-25,2026-10-25,open,0,,INR
+DEMO-NEW-C08-O001,NEW-C08,Demo New business without payment history Buyer 08,corporate,53000,2026-09-25,2026-10-25,open,0,,INR
+DEMO-NEW-C02-O002,NEW-C02,Demo New business without payment history Buyer 02,corporate,41000,2026-10-02,2026-11-01,open,0,,INR
+DEMO-NEW-C04-O001,NEW-C04,Demo New business without payment history Buyer 04,small,63500,2026-10-02,2026-11-01,open,0,,INR
+DEMO-NEW-C05-O003,NEW-C05,Demo New business without payment history Buyer 05,corporate,54500,2026-10-02,2026-11-01,open,0,,INR
+DEMO-NEW-C07-O002,NEW-C07,Demo New business without payment history Buyer 07,small,61500,2026-10-02,2026-11-01,open,0,,INR
+DEMO-NEW-C01-O003,NEW-C01,Demo New business without payment history Buyer 01,small,46500,2026-10-09,2026-11-08,open,0,,INR
+DEMO-NEW-C03-O002,NEW-C03,Demo New business without payment history Buyer 03,government,38500,2026-10-09,2026-11-08,open,0,,INR
+DEMO-NEW-C05-O001,NEW-C05,Demo New business without payment history Buyer 05,corporate,33500,2026-10-09,2026-11-08,open,8375,,INR
+DEMO-NEW-C06-O003,NEW-C06,Demo New business without payment history Buyer 06,government,17500,2026-10-09,2026-11-08,open,0,,INR
+DEMO-NEW-C08-O002,NEW-C08,Demo New business without payment history Buyer 08,corporate,11000,2026-10-09,2026-11-08,open,5500,,INR
