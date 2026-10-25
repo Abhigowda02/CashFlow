@@ -7,7 +7,7 @@ export type ScenarioChange =
 export type ScenarioDefinition = { name: string; changes: ScenarioChange[] };
 export type SavedScenario = ScenarioDefinition & { id: string; created_at: string; updated_at: string };
 export type ChangeDraft = { key: string; type: ScenarioChange['type']; customer_id?: string;
-  extra_days?: string; pct?: string; amount?: string; date?: string };
+  extra_days?: string; pct?: string; amount?: string; date?: string; category?: string; label?: string };
 export type PlannerDraft = { name: string; changes: ChangeDraft[] };
 export type PlannerBusiness = { as_of: string; customers: { id: string; name: string; segment: string }[];
   invoices: { id: string; customer_id: string; amount: number; received_amount?: number; status: string; due_date: string }[];
@@ -53,7 +53,7 @@ export function buildDefinition(draft: PlannerDraft, business: PlannerBusiness) 
       if (!row.amount?.trim() || !Number.isSafeInteger(amount) || amount <= 0) errors.push(`${label}: enter a positive whole INR amount.`);
       const parsed = new Date(`${row.date}T12:00:00Z`);
       if (!row.date || !/^\d{4}-\d{2}-\d{2}$/.test(row.date) || Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== row.date || row.date < business.as_of || row.date > horizonEnd(business.as_of)) errors.push(`${label}: choose a payment date inside this 90-day forecast.`);
-      changes.push({ type: row.type, amount, date: row.date ?? '' });
+      changes.push({ type: row.type, amount, date: row.date ?? '', category: row.category ?? 'other', label: row.label?.trim() || undefined });
     } else if (row.type === 'sales_change') {
       const pct = Number(row.pct);
       if (!row.pct?.trim() || !Number.isFinite(pct) || pct < -100 || pct > 100 || pct === 0) errors.push(`${label}: enter a nonzero sales change between −100% and +100%.`);
