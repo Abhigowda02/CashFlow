@@ -27,7 +27,8 @@ import unittest
 from unittest.mock import patch
 import pytest
 
-from engine import compare_scenario, format_inr, generate_business, rank_actions, run_forecast
+from engine import compare_scenario, format_inr, rank_actions, run_forecast
+from engine.datagen import generate_business
 from engine.check_contract import (
     ContractValidationError,
     validate_actions,

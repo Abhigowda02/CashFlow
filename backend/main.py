@@ -8,7 +8,7 @@ from fastapi import FastAPI, HTTPException, Depends, Request, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-from . import ledger, auth, database, customer_behavior, expenses, scenarios, demo, pdf_import
+from . import ledger, auth, database, customer_behavior, expenses, scenarios, pdf_import
 from .scenarios import Scenario
 from sqlalchemy import update
 
@@ -124,20 +124,15 @@ def annotated(forecast, business, requested, business_id):
 
 
 def load_engine():
+    # Production backend loads forecasting and scenario functions; generate_business is for dev/test fixtures only
     from engine import (
         compare_scenario,
-        generate_business,
         rank_actions,
         run_forecast,
     )
 
-    return generate_business, run_forecast, compare_scenario, rank_actions
+    return None, run_forecast, compare_scenario, rank_actions
 
-
-@lru_cache(maxsize=1)
-def engine_business():
-    generate_business, _, _, _ = load_engine()
-    return generate_business()
 
 
 def fixture_response(payload, source="engine"):
@@ -182,30 +177,6 @@ class Onboarding(BaseModel):
     opening_cash: int = Field(ge=0, strict=True)
     safety_floor: int = Field(ge=0, strict=True)
 
-
-class DemoLoad(BaseModel):
-    model_config = ConfigDict(extra='forbid')
-
-    confirm: bool = Field(strict=True)
-    reset: bool = Field(default=False, strict=True)
-
-    @field_validator('confirm')
-    @classmethod
-    def explicit_confirmation(cls, value):
-        if value is not True:
-            raise ValueError('Explicit confirmation is required to load or reset the demo')
-        return value
-
-
-@app.post('/api/demo')
-def load_demo(payload: DemoLoad, user: auth.Account = Depends(auth.require_user)):
-    try:
-        demo.load(user.business_id, reset=payload.reset)
-    except demo.DemoConflict as error:
-        raise HTTPException(409, str(error)) from error
-    except (OSError, ValueError, KeyError) as error:
-        raise HTTPException(503, 'Synthetic demo files are unavailable. Check the server examples files and try again.') from error
-    return dict(loaded=True, data_source=demo.SOURCE, onboarding_required=False)
 
 
 @app.post('/api/onboarding')

@@ -156,7 +156,7 @@ export default function LedgerPage({ apiUrl, business, onChanged }: Props) {
   const open = ledger?.invoices.filter(invoice => invoice.outstanding > 0) ?? [];
   const template = 'invoice_id,customer_id,customer_name,segment,amount,issue_date,due_date,status,received_amount,paid_date,currency\nINV-1,C1,Example Customer,small,10000,2026-10-01,2026-10-20,open,2000,,INR\n';
   return <div className="space-y-5">
-    <div><p className="eyebrow">CASH OPERATIONS</p><h1 className="mt-1.5 text-[28px] font-semibold tracking-tight">Invoices & cash {/demo|synthetic/i.test(business.name) && <span className="invoice-status ml-2 align-middle">Demo data</span>}</h1>
+    <div><p className="eyebrow">CASH OPERATIONS</p><h1 className="mt-1.5 text-[28px] font-semibold tracking-tight">Invoices & cash</h1>
       <p className="mt-2 text-sm text-slate-500">Track what is owed, record what arrives, and keep your plan up to date.</p></div>
     <div className="ledger-summary">
       <div><p>Available cash</p><strong>{money(business.opening_cash)}</strong></div>
@@ -174,28 +174,14 @@ export default function LedgerPage({ apiUrl, business, onChanged }: Props) {
         <h2 className="font-semibold">Import invoices</h2>
         <p className="text-xs leading-5 text-slate-500">CSV or Excel (.xlsx) replaces the current workspace, including its receipt log and plan. Up to 2,000 rows and 5 MB. Use whole INR amounts and ISO dates. For PDF, use the separate review-and-add workflow below.</p>
         <div className="rounded-xl border border-indigo-100 bg-indigo-50/70 p-4">
-          <p className="text-xs font-semibold text-indigo-950">Download ready-to-use sample datasets:</p>
+          <p className="text-xs font-semibold text-indigo-950">Download invoice template:</p>
           <div className="mt-2 flex flex-wrap gap-2.5">
-            <a
-              className="rounded-lg border border-indigo-200 bg-white px-3 py-1.5 text-xs font-semibold text-indigo-700 shadow-sm transition hover:bg-indigo-50"
-              download="textile_wholesale_sample.csv"
-              href="/demo-datasets/01_textile_wholesale.csv"
-            >
-              📥 Textile Wholesale (123 Invoices · Recommended)
-            </a>
-            <a
-              className="rounded-lg border border-indigo-200 bg-white px-3 py-1.5 text-xs font-semibold text-indigo-700 shadow-sm transition hover:bg-indigo-50"
-              download="it_services_sample.csv"
-              href="/demo-datasets/02_it_services.csv"
-            >
-              📥 IT Services (78 Invoices)
-            </a>
             <a
               className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
               download="blank_invoice_template.csv"
               href={`data:text/csv;charset=utf-8,${encodeURIComponent(template)}`}
             >
-              Blank CSV Template
+              📥 Blank CSV Template
             </a>
           </div>
         </div>
@@ -294,7 +280,20 @@ export default function LedgerPage({ apiUrl, business, onChanged }: Props) {
           <tbody>{filtered.slice(page * 25, page * 25 + 25).map(invoice => <tr className="border-t border-slate-100" key={invoice.id}>
             <td className="p-2">{invoice.id}</td><td className="p-2">{invoice.customer_name}</td><td className="p-2"><span className="invoice-status" data-status={invoice.ledger_status}>{invoice.ledger_status}</span></td><td className="p-2">{invoice.due_date}</td>
             <td className="p-2">{money(invoice.amount)}</td><td className="p-2">{money(invoice.received)}</td><td className="p-2">{money(invoice.outstanding)}</td></tr>)}</tbody></table></div>
-        {!filtered.length && <div className="px-6 py-14 text-center"><p className="text-sm font-semibold text-slate-700">{search ? 'No matching invoices' : 'Your invoice ledger starts here'}</p><p className="mt-2 text-xs text-slate-500">{search ? 'Try another invoice number, customer or status.' : 'Import your first file to track receivables and forecast expected payments.'}</p></div>}
+        {!filtered.length && <div className="px-6 py-14 text-center">
+          <p className="text-sm font-semibold text-slate-700">{search ? 'No matching invoices' : 'Your invoice ledger starts here'}</p>
+          <p className="mt-2 text-xs text-slate-500">{search ? 'Try another invoice number, customer or status.' : 'Import your first file to track receivables and forecast expected payments.'}</p>
+          {!search && (
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+              <button type="button" className="button-primary" onClick={() => setView('import')}>
+                Upload invoices
+              </button>
+              <button type="button" className="button-secondary" onClick={() => setMessage('Account Aggregator and bank connector will be available in connected data settings.')}>
+                Connect data
+              </button>
+            </div>
+          )}
+        </div>}
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 p-4 text-xs text-slate-500"><span>{filtered.length ? `${page * 25 + 1}–${Math.min((page + 1) * 25, filtered.length)} of ${filtered.length} invoices` : '0 invoices'}</span><div className="flex gap-2"><button className="button-secondary" disabled={page === 0} onClick={() => setPage(page - 1)}>Previous</button>
           <button className="button-secondary" disabled={(page + 1) * 25 >= filtered.length} onClick={() => setPage(page + 1)}>Next</button></div></div>
       </section>

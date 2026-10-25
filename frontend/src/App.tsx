@@ -39,7 +39,6 @@ import ScenarioPlanner from './ScenarioPlanner';
 import { type PlannerDraft } from './scenarioLogic';
 import { API_BASE, apiRequest, type Account } from './api';
 import { type PlanBusiness } from './WorkspacePlan';
-import DemoControl from './DemoControl';
 
 const API_URL = API_BASE;
 
@@ -214,6 +213,9 @@ function App({ account, onSignout }: { account: Account; onSignout: () => Promis
       setBusiness(businessData);
       setForecast(forecastData);
       setActions(actionsData);
+      if (businessData.invoices.length === 0) {
+        setActiveTab("ledger");
+      }
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
       setLoadError(displayError(error));
@@ -291,8 +293,6 @@ function App({ account, onSignout }: { account: Account; onSignout: () => Promis
   }
 
   const tone = hasExpenseWarning ? "warning" : hasForecastInputs ? shortageTone(forecast.shortage_prob) : "warning";
-  const isDemo = business.data_source === 'synthetic_demo';
-  const isSynthetic = isDemo || business.data_source === 'synthetic' || /demo|synthetic/i.test(business.name);
   const firstShortage =
     forecast.dates.find(
       (_, index) => forecast.p50[index] < forecast.safety_floor,
@@ -392,13 +392,9 @@ function App({ account, onSignout }: { account: Account; onSignout: () => Promis
             ))}
           </nav>
 
-          {isSynthetic && <aside aria-label="Synthetic data notice" className="mb-5 rounded-lg border border-indigo-200 bg-indigo-50 p-4 text-indigo-950">
-            <strong className="text-sm">Synthetic demo data</strong><p className="mt-1 text-xs leading-5">Fictional invoices and assumptions for demonstration. Forecasts and scenario results are estimates, not evidence of real-business accuracy.</p>
-            {isDemo && <DemoControl reset onLoaded={async () => { setPlannerDraft({ name: '', changes: [] }); await loadData(); }} />}
-          </aside>}
           <div role="status" className="source-status">
             <span className="status-dot" />
-            {isSynthetic ? 'Synthetic demo data' : business.data_source === 'imported' ? 'Imported invoice workspace' : 'Your business workspace'}
+            {business.data_source === 'imported' ? 'Imported invoice workspace' : 'Your business workspace'}
             {' · '}Model used: {forecast.meta?.delay_model_used ?? 'unknown'}
             {forecast.meta?.delay_model_used !== delayModel && ' · Requested model unavailable; historical-delay fallback used.'}
             {delayModel === 'survival' && ' · Model accuracy on this business has not been validated.'}
@@ -449,7 +445,7 @@ function App({ account, onSignout }: { account: Account; onSignout: () => Promis
           )}
 
           <footer className="mt-10 flex flex-col items-center justify-between gap-2 border-t border-slate-200/70 pt-5 text-[11px] text-slate-400 sm:flex-row">
-            <span>{isSynthetic ? 'Synthetic demo data · Illustrative results only' : 'Forecast uses your entered records; verify obligations and cash balances.'}</span>
+            <span>Forecast uses your entered records; verify obligations and cash balances.</span>
             <span>Built for clearer cash-flow decisions</span>
           </footer>
         </main>

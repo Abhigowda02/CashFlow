@@ -1,7 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import App from './App';
 import { API_BASE, ApiError, apiRequest, setCsrfToken, type Account } from './api';
-import DemoControl from './DemoControl';
 import { Wallet, TrendingUp, FileText, ArrowLeftRight, Eye, EyeOff } from 'lucide-react';
 
 export default function AuthGate() {
@@ -79,17 +78,16 @@ export default function AuthGate() {
         <p className="mt-2 text-sm text-slate-500">{account ? 'Start with your actual cash position. You can import invoices and add obligations next.' : 'Your business records are kept in a separate workspace.'}</p>
         {error && <p role="alert" className="mt-4 rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{error}</p>}
         {sessionError && <p role="alert" className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm leading-5 text-amber-900">{sessionError}</p>}
-        {account && <DemoControl onLoaded={async () => accept(await apiRequest<Account>(`${API_BASE}/auth/me`))} />}
         {account ? <form onSubmit={setup} className="mt-6 space-y-4">
           <label className="block text-sm">Business name<input className="field-input mt-1" required maxLength={120} value={name} onChange={e => setName(e.target.value)} /></label>
           <div>
-            <label className="block text-sm">Observation date<input className="field-input mt-1" type="date" required value={asOf} onChange={e => setAsOf(e.target.value)} /></label>
+            <label className="block text-sm">Balance as of date (default today)<input className="field-input mt-1" type="date" required value={asOf} onChange={e => setAsOf(e.target.value)} /></label>
             <p className="mt-1 text-[11px] leading-normal text-slate-500">
-              Anchors your initial financial snapshot (as_of). The app does not silently tick forward with your computer clock; accounting balances advance only when reconciled against actual bank statements.
+              Anchors your initial financial snapshot. Accounting balances advance as bank transactions and statements are reconciled.
             </p>
           </div>
-          <label className="block text-sm">Cash available now (INR)<input className="field-input mt-1" type="number" min="0" step="1" required value={cash} onChange={e => setCash(e.target.value)} /></label>
-          <label className="block text-sm">Minimum cash buffer (INR)<input className="field-input mt-1" type="number" min="0" step="1" required value={floor} onChange={e => setFloor(e.target.value)} /></label>
+          <label className="block text-sm">Current bank / cash balance (INR)<input className="field-input mt-1" type="number" min="0" step="1" required value={cash} onChange={e => setCash(e.target.value)} /></label>
+          <label className="block text-sm">Safety buffer (INR)<input className="field-input mt-1" type="number" min="0" step="1" required value={floor} onChange={e => setFloor(e.target.value)} /></label>
           <p className="text-xs leading-5 text-slate-500">Include receipts already in your bank balance. Expected invoice payments are added separately. Your workspace starts empty, without synthetic data.</p>
           <button disabled={busy} className="button-primary w-full">{busy ? 'Saving…' : 'Open my workspace'}</button>
           <button className="button-secondary w-full" type="button" disabled={busy} onClick={() => { void signout().catch(() => {}); }}>Sign out</button>

@@ -26,26 +26,14 @@ Open `http://localhost:5173`. The frontend proxies `/api` to port 8000 so sessio
 cookies remain on the same origin. Both `localhost` and `127.0.0.1` are accepted
 by the API's local development CORS policy. Keep both terminals running.
 
-## Judge demo: complete synthetic business
+## Developer fixtures: synthetic data generation
 
-Create a fresh account, then on **Set up your business** choose **Explore synthetic
-demo**. Read the notice, check **I understand this is fictional demo data**, and
-choose **Load synthetic demo**. This explicitly loads the existing
-`examples/jury_invoices.csv` and `examples/jury_setup.json`: 42 invoices including
-two partial receipts, opening cash, safety floor, recurring obligations, supplier
-bills and future-sales assumptions. No manual plan entry is needed.
+Synthetic data generators and test fixtures exist solely for offline development, contract verification, and automated testing:
+- `engine/datagen.py`: `generate_business(seed)` generates contract-compliant synthetic MSME business profiles for engine tests and contract verification.
+- `tests/sample_data/`: Sample CSV and Excel files (e.g. `01_textile_wholesale.csv`, `02_it_services.csv`) used for testing file ingestion and invoice auto-mapping.
 
-**Synthetic demo data** stays visible across every workspace tab. Review Overview,
-Customers and Cash forecast, then in Scenario planner choose the customer whose
-payments you want to delay. In Invoices & cash, record a new partial receipt to
-show cash increasing as receivables decrease. These are workflow demonstrations,
-not evidence of real-world model accuracy.
+The user-facing application operates strictly on user-entered or imported business data without seeded demo fixtures or simulated demo modes.
 
-Use **Reset synthetic demo**, review the reset notice and confirm to restore only
-that demo workspace, including its receipts and saved scenarios. Demo loading is
-refused for every onboarded non-demo workspace, including a cash-only workspace.
-Use a separate fresh account to explore the demo when you already have business
-records. Real workspaces are never seeded or reset implicitly.
 
 ## SaaS MVP accounts
 

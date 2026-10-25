@@ -30,4 +30,15 @@
   - `frontend/src/types/contract.ts`
 - **Open Issues**: None
 - **Tests**: `python shared/validate.py` (PASS), `pytest shared/tests` (15 passed), `frontend npm run build` (PASS)
+- **Commit**: `e12526a P02: shared schema and contract kit`
+
+## P03: Remove demo code and fix the onboarding path
+- **Status**: DONE
+- **Files Changed**:
+  - Deleted: `backend/demo.py`, `backend/tests/test_demo.py`, `frontend/src/DemoControl.tsx`, `examples/jury_*`, `examples/make_jury_demo.py`
+  - Moved: sample datasets to `tests/sample_data/`
+  - Modified: `backend/main.py`, `frontend/src/App.tsx`, `frontend/src/AuthGate.tsx`, `frontend/src/LedgerPage.tsx`, `engine/tests/test_engine.py`, `scripts/diagnose_forecast.py`, `README.md`
+- **Open Issues**: None
+- **Tests**: `git grep -i "demo" backend frontend/src` (0 results), `engine.check_contract` (PASS), `npm run build` (PASS), `pytest backend/tests shared/tests` (136 passed)
+
 

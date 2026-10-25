@@ -37,8 +37,10 @@ def diagnose():
     print(f"  min_balance_p50:      Rs {demo_fc['min_balance_p50']:,}")
     print(f"  drivers count:        {len(demo_fc.get('drivers', []))}")
 
-    # (b) Imported workspace (examples/demo_datasets/01_textile_wholesale.csv)
-    csv_file = ROOT / "examples" / "demo_datasets" / "01_textile_wholesale.csv"
+    # (b) Imported workspace (tests/sample_data/01_textile_wholesale.csv)
+    csv_file = ROOT / "tests" / "sample_data" / "01_textile_wholesale.csv"
+    if not csv_file.exists():
+        csv_file = ROOT / "examples" / "demo_datasets" / "01_textile_wholesale.csv"
     if not csv_file.exists():
         raise FileNotFoundError(f"Missing sample dataset: {csv_file}")
 
