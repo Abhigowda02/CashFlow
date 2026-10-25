@@ -11,6 +11,8 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from . import clock, ledger, auth, database, customer_behavior, expenses, scenarios, pdf_import
 from .routers.invoices import router as invoices_router
 from .routers.forecast_view import router as forecast_view_router
+from .routers.reminders import router as reminders_router
+from .routers.alerts import router as alerts_router
 from .scenarios import Scenario
 from sqlalchemy import update
 
@@ -97,6 +99,16 @@ class CustomerContext(BaseModel):
     service_issue: Literal['none', 'open', 'resolving']
     disputed_invoice_ids: list[str] = Field(default_factory=list, max_length=2000)
     notes: str = Field(default='', max_length=1000)
+
+class ManualReminderItem(BaseModel):
+    type: Literal['electricity_bill','gas_bill','water_bill','rent','salary','loan_emi','gst_tax','insurance','supplier_payment','custom']
+    title: str = Field(min_length=1, max_length=120)
+    amount: int = Field(gt=0, strict=True)
+    due_date: date
+    lead_time_days: Literal[0,1,3,7]
+
+class ManualReminderPreview(BaseModel):
+    items: list[ManualReminderItem] = Field(max_length=100)
 
 
 def current_business(business_id):
@@ -188,6 +200,8 @@ app = FastAPI(title="CashFlow API", lifespan=lifespan)
 app.include_router(auth.router)
 app.include_router(invoices_router)
 app.include_router(forecast_view_router)
+app.include_router(reminders_router)
+app.include_router(alerts_router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=auth.ALLOWED_ORIGINS,
@@ -300,6 +314,24 @@ def get_actions(delay_model: DelayModel = 'empirical', user: auth.Account = Depe
 @app.get('/api/customers')
 def get_customers(user: auth.Account = Depends(auth.require_user)):
     return customer_behavior.profiles(current_business(user.business_id), user.business_id)
+
+@app.get('/api/reminders')
+def get_reminders(user: auth.Account = Depends(auth.require_user)):
+    from engine.reminders import customer_reminder_drafts
+    business=current_business(user.business_id); today=clock.today_ist().isoformat()
+    _, run_forecast, _, _=load_engine(); forecast=run_forecast(ledger.forecast_business(business,user.business_id))
+    overdue=[i for i in business.get('invoices',[]) if i.get('status')=='open' and i.get('due_date','')<today]
+    largest=max(overdue,key=lambda i:i['amount']-i.get('received_amount',0),default=None); names={c['id']:c.get('name',c['id']) for c in business.get('customers',[])}
+    alert=None
+    if forecast['shortage_prob']>=.25 and forecast.get('first_shortage_date') and (date.fromisoformat(forecast['first_shortage_date'])-clock.today_ist()).days<=30:
+        alert={'title':'Cash shortage likely','probability':forecast['shortage_prob'],'first_shortage_date':forecast['first_shortage_date'],'customer_name':names.get(largest.get('customer_id'),largest.get('customer_id')) if largest else None,'invoice_id':largest.get('id') if largest else None,'amount':largest['amount']-largest.get('received_amount',0) if largest else 0}
+    return {'drafts':customer_reminder_drafts(business,today),'shortage_alert':alert}
+
+@app.post('/api/reminders/manual-preview')
+def manual_reminder_preview(payload: ManualReminderPreview, user: auth.Account = Depends(auth.require_user)):
+    from engine.reminders import manual_reminder_drafts
+    current_business(user.business_id)
+    return {'drafts':manual_reminder_drafts([item.model_dump(mode='json') for item in payload.items],clock.today_ist().isoformat())}
 
 
 @app.post('/api/customer-context')

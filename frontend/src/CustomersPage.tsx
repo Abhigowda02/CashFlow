@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { apiRequest } from './api';
-import { RefreshCw, Users, ArrowRight } from 'lucide-react';
+import { RefreshCw, Users, ArrowRight, Send } from 'lucide-react';
 import CustomerContextForm, { type CollectionContext } from './CustomerContextForm';
+import ReminderSheet, { type ReminderData } from './ReminderSheet';
 
 type Prediction = { invoice_id: string; outstanding: number; due_date: string; status: string;
   probability_7_days: number | null; probability_30_days: number | null; probability_60_days: number | null;
@@ -25,6 +26,33 @@ export default function CustomersPage({ apiUrl }: { apiUrl: string }) {
   const [search, setSearch] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [activeReminder, setActiveReminder] = useState<ReminderData | null>(null);
+
+  async function handleSendReminder(c: Customer) {
+    try {
+      const queue = await apiRequest<ReminderData[]>(`${apiUrl}/reminders/queue`);
+      const found = queue.find((r) => r.customer_id === c.id);
+      if (found) {
+        setActiveReminder(found);
+      } else {
+        const invIds = c.invoices.map((i) => i.invoice_id);
+        setActiveReminder({
+          id: `REM-${c.id}`,
+          customer_id: c.id,
+          customer_name: c.name,
+          invoice_ids: invIds.length ? invIds : ['DUE-RECV'],
+          rung: 2,
+          channel: 'email',
+          subject: `Payment reminder: Reconciled dues for ${c.name}`,
+          body: `Dear ${c.name},\n\nPlease arrange clearance of outstanding dues totaling ${money(c.outstanding)}.\n\nThank you,\nAccounts Team`,
+          status: 'draft',
+          total_amount: c.outstanding,
+        });
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not prepare reminder draft');
+    }
+  }
   useEffect(() => {
     const controller = new AbortController();
     apiRequest<Profiles>(`${apiUrl}/customers`, undefined, controller.signal).then(result => {
@@ -70,7 +98,21 @@ export default function CustomersPage({ apiUrl }: { apiUrl: string }) {
           {customer && <div className="min-w-0 space-y-5">
             <CustomerContextForm key={customer.id} apiUrl={apiUrl} customerId={customer.id} value={customer.collection_context}
               invoices={customer.invoices} onSaved={async () => { setData(await apiRequest<Profiles>(`${apiUrl}/customers`)); }} />
-            <section className="panel-card p-5"><div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-lg font-semibold tracking-tight">{customer.name}</h2><p className="mt-1 text-xs text-slate-500">{customer.id} · {customer.segment} · {customer.invoice_count} invoices</p></div><span className="invoice-status">{basis[customer.prediction_basis]}</span></div>
+            <section className="panel-card p-5"><div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-lg font-semibold tracking-tight">{customer.name}</h2><p className="mt-1 text-xs text-slate-500">{customer.id} · {customer.segment} · {customer.invoice_count} invoices</p></div>
+              <div className="flex items-center gap-2">
+                <span className="invoice-status">{basis[customer.prediction_basis]}</span>
+                {customer.outstanding > 0 && (
+                  <button
+                    type="button"
+                    className="button-primary py-1 px-3 text-xs inline-flex items-center gap-1.5"
+                    onClick={() => void handleSendReminder(customer)}
+                  >
+                    <Send size={13} />
+                    Send reminder
+                  </button>
+                )}
+              </div>
+            </div>
               <p className="mt-4 text-xs font-semibold text-slate-600">Observed invoice and payment history</p><div className="mt-3 grid grid-cols-2 gap-5 border-t border-slate-100 pt-5 sm:grid-cols-4">{[
                 ['Outstanding', money(customer.outstanding)], ['Median delay', days(customer.median_delay)],
                 ['Delay variability', customer.delay_std === null ? 'Need 2 payments' : `${Math.round(customer.delay_std * 10) / 10} days`], ['Paid on time', percent(customer.on_time_share)],
@@ -88,5 +130,15 @@ export default function CustomersPage({ apiUrl }: { apiUrl: string }) {
         </div>
       </>}
     </>}
+    {activeReminder && (
+      <ReminderSheet
+        apiUrl={apiUrl}
+        reminder={activeReminder}
+        onClose={() => setActiveReminder(null)}
+        onUpdated={async () => {
+          setData(await apiRequest<Profiles>(`${apiUrl}/customers`));
+        }}
+      />
+    )}
   </div>;
 }

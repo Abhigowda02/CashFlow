@@ -76,4 +76,26 @@
 - **Open Issues**: The legacy monolithic frontend has not yet been switched to this endpoint; invoice payment distributions and accuracy history need their later integrations.
 - **Tests**: forecast-view test (1 passed), `python -m engine.check_contract` (PASS)
 
+## P13-P15: Customer payment reminders ladder and owner cash shortage / due alerts
+- **Status**: DONE
+- **Files Changed**:
+  - `backend/database.py` (added reminders, reminder_logs, alerts, alert_prefs, alert_outbox, business_settings tables)
+  - `backend/modules/delivery.py` (SMTP email with STARTTLS and safe mock fallback, WhatsApp wa.me link, SMS sms: link, mailto: builder)
+  - `backend/modules/reminder_engine.py` (escalation ladder rungs -3, 0, +7, +15, +30, grouping per customer, Indian number formatting, promise/dispute pauses, strategic tone)
+  - `backend/modules/alert_rules.py` (shortage probability and cause detection, stale balance suppression, 7/3/1 day due expense consolidation/escalation, deduplication)
+  - `backend/routers/reminders.py` (queue, edit, approve, cancel, send, settings, history)
+  - `backend/routers/alerts.py` (list, mark-read, snooze, mark-all-read, prefs, test-email)
+  - `backend/main.py` (included reminders and alerts routers)
+  - `backend/.env.example` (documented SMTP and MOCK_DELIVERY settings)
+  - `backend/tests/test_delivery.py`, `test_reminder_engine.py`, `test_alert_rules.py`, `test_reminders_router.py`, `test_alerts_router.py` (25 passing unit and route tests)
+  - `frontend/src/NotificationCenter.tsx` (topbar bell with unread badge, dropdown, shortage/due alerts, snooze, prefs modal, test email button)
+  - `frontend/src/ReminderSheet.tsx` & `frontend/src/components/ReminderSheet.tsx` (drawer/modal, customer rungs, channel selection, advocate review warning for rung 5, approve and send workflow, mailto fallback, copy text)
+  - `frontend/src/RemindersPage.tsx` (new tab with queue table, business payment details settings, audit history log)
+  - `frontend/src/CustomersPage.tsx` (added one-tap Send reminder button and ReminderSheet modal)
+  - `frontend/src/App.tsx` (wired NotificationCenter into workspace-topbar, added Payment reminders tab and view)
+  - `docs/FEATURE_STATUS.md` (documented testing steps and statuses)
+- **Open Issues**: None
+- **Tests**: Full suite `python -m pytest engine/tests ml/tests backend/tests -q` (289 passed), `python -m engine.check_contract` (PASS), `python shared/validate.py` (PASS), `frontend npm run build` (PASS)
+
+
 

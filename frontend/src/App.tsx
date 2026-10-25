@@ -18,6 +18,7 @@ import {
   TrendingDown,
   Wallet,
   Users,
+  BellRing,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -33,6 +34,8 @@ import {
 } from "recharts";
 import LedgerPage from './LedgerPage';
 import CustomersPage from './CustomersPage';
+import RemindersPage from './RemindersPage';
+import NotificationCenter from './NotificationCenter';
 import CollectionsPanel from './CollectionsPanel';
 import ExpensesPage from './ExpensesPage';
 import ScenarioPlanner from './ScenarioPlanner';
@@ -111,12 +114,13 @@ type Action = {
   runway_days_gained: number;
 };
 
-type TabId = "dashboard" | "forecast" | "simulator" | "actions" | "ledger" | "customers" | "expenses";
+type TabId = "dashboard" | "forecast" | "simulator" | "actions" | "ledger" | "customers" | "reminders" | "expenses";
 
 const tabs: { id: TabId; label: string; icon: LucideIcon }[] = [
   { id: "dashboard", label: "Overview", icon: LayoutDashboard },
   { id: "ledger", label: "Invoices & cash", icon: FileText },
   { id: "customers", label: "Customers", icon: Users },
+  { id: "reminders", label: "Payment reminders", icon: BellRing },
   { id: "expenses", label: "Expenses & obligations", icon: CalendarDays },
   { id: "forecast", label: "Cash forecast", icon: TrendingDown },
   { id: "simulator", label: "Scenario planner", icon: Sparkles },
@@ -455,6 +459,11 @@ function App({ account, onSignout }: { account: Account; onSignout: () => Promis
               </p>
             </div>
             <div className="flex items-center gap-2">
+              <NotificationCenter
+                apiUrl={API_URL}
+                onNavigate={(tab) => setActiveTab(tab as TabId)}
+                onOpenBalanceModal={() => setShowBalanceModal(true)}
+              />
               <button className="button-secondary" onClick={() => setShowBalanceModal(true)}>
                 Update balance
               </button>
@@ -508,6 +517,7 @@ function App({ account, onSignout }: { account: Account; onSignout: () => Promis
             </div>}
           {activeTab === 'ledger' && <LedgerPage apiUrl={API_URL} business={business} onChanged={() => loadData()} />}
           {activeTab === 'customers' && <CustomersPage apiUrl={API_URL} />}
+          {activeTab === 'reminders' && <RemindersPage apiUrl={API_URL} />}
           {activeTab === 'expenses' && <ExpensesPage apiUrl={API_URL} business={business} onChanged={() => loadData()} />}
           {activeTab === "dashboard" && (
             <Dashboard

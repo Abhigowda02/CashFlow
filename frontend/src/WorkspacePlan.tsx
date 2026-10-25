@@ -6,32 +6,96 @@ export type PlanBusiness = { obligations?: Obligation[]; supplier_bills?: Bill[]
   sales_plan?: { monthly_amount: number; terms_days: number; monthly_noise_pct: number } };
 
 export default function WorkspacePlan({ apiUrl, business, onChanged }: {
-  apiUrl: string; business: PlanBusiness & { as_of: string }; onChanged: () => Promise<void>;
+  apiUrl: string; business: PlanBusiness & { as_of: string; cash_updated_on?: string; cash_balance?: number; opening_cash?: number }; onChanged: () => Promise<void>;
 }) {
   const [obligations, setObligations] = useState<Obligation[]>(business.obligations ?? []);
   const [bills, setBills] = useState<Bill[]>(business.supplier_bills ?? []);
   const [sales, setSales] = useState(business.sales_plan?.monthly_amount ?? 0);
   const [terms, setTerms] = useState(business.sales_plan?.terms_days ?? 30);
   const [noise, setNoise] = useState(business.sales_plan?.monthly_noise_pct ?? 15);
-  const [asOf, setAsOf] = useState(business.as_of);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [showBalanceModal, setShowBalanceModal] = useState(false);
+  const [newCash, setNewCash] = useState(business.cash_balance ?? business.opening_cash ?? 0);
+  const [newDate, setNewDate] = useState(business.cash_updated_on ?? business.as_of);
+  const [balanceBusy, setBalanceBusy] = useState(false);
+
   async function save(event: FormEvent) {
     event.preventDefault(); setBusy(true); setError('');
     try {
-      await apiRequest(`${apiUrl}/plan`, { obligations, supplier_bills: bills, monthly_sales: sales, terms_days: terms, monthly_noise_pct: noise, as_of: asOf });
+      await apiRequest(`${apiUrl}/plan`, { obligations, supplier_bills: bills, monthly_sales: sales, terms_days: terms, monthly_noise_pct: noise });
       await onChanged();
     } catch (e) { setError(e instanceof Error ? e.message : 'Save failed'); }
     finally { setBusy(false); }
   }
+
+  async function saveBalance(e: FormEvent) {
+    e.preventDefault(); setBalanceBusy(true); setError('');
+    try {
+      await apiRequest(`${apiUrl}/business/balance`, { cash_balance: newCash, cash_updated_on: newDate });
+      setShowBalanceModal(false);
+      await onChanged();
+    } catch (e) { setError(e instanceof Error ? e.message : 'Update balance failed'); }
+    finally { setBalanceBusy(false); }
+  }
+
   return <form className="panel-card space-y-5 p-5" onSubmit={save}>
     <div><h2 className="font-semibold">Outflows & future sales</h2><p className="mt-1 text-xs leading-5 text-slate-500">Enter your actual salary, rent, EMI or tax schedules. Dates are supplied by you; tax deadlines are not automatically verified. Changes affect forecasts, not current cash.</p></div>
     {error && <p role="alert" className="text-sm text-rose-700">{error}</p>}
-    <div className="space-y-1.5">
-      <label className="block text-xs font-semibold text-slate-700">Observation date (as_of)<input className="field-input mt-1" required type="date" min={business.as_of} value={asOf} onChange={e => setAsOf(e.target.value)} /></label>
-      <p className="text-[11px] leading-relaxed text-slate-500">
-        <strong>Accounting principle:</strong> CashFlow anchors to this Observation Date (<span className="font-mono text-slate-700">{business.as_of}</span>) and does not automatically tick forward with your computer&apos;s clock. When tomorrow arrives, the app does not silently advance the date by 1 day and pretend bank debits happened. In financial accounting, bank balances must be reconciled against actual bank statements, not guessed by a timer.
-      </p>
+    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Cash balance freshness</span>
+          <p className="text-sm font-medium text-slate-800">
+            Last reconciled: <span className="font-semibold text-slate-900">{business.cash_updated_on ?? business.as_of}</span> · Today: <span className="font-mono text-slate-700">{business.as_of}</span>
+          </p>
+          <p className="mt-1 text-xs text-slate-500">
+            Today is dynamic in Asia/Kolkata. Bank balances are not guessed: update your balance whenever you verify your bank statements.
+          </p>
+        </div>
+        <button type="button" className="button-secondary text-xs" onClick={() => setShowBalanceModal(!showBalanceModal)}>
+          {showBalanceModal ? 'Close' : 'Update balance'}
+        </button>
+      </div>
+      {showBalanceModal && (
+        <div className="mt-4 rounded-lg border border-slate-300 bg-white p-4 shadow-sm">
+          <h3 className="text-sm font-semibold text-slate-800">Update verified cash balance</h3>
+          <div className="mt-3 space-y-3">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="text-xs">
+                Bank / cash balance (INR)
+                <input
+                  type="number"
+                  className="field-input mt-1"
+                  required
+                  min="0"
+                  step="1"
+                  value={newCash}
+                  onChange={(e) => setNewCash(Number(e.target.value))}
+                />
+              </label>
+              <label className="text-xs">
+                Balance as of date
+                <input
+                  type="date"
+                  className="field-input mt-1"
+                  required
+                  value={newDate}
+                  onChange={(e) => setNewDate(e.target.value)}
+                />
+              </label>
+            </div>
+            <div className="flex gap-2">
+              <button type="button" className="button-primary text-xs" disabled={balanceBusy} onClick={saveBalance}>
+                {balanceBusy ? 'Updating…' : 'Save verified balance'}
+              </button>
+              <button type="button" className="button-secondary text-xs" onClick={() => setShowBalanceModal(false)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
     <fieldset className="space-y-3"><legend className="mb-2 text-sm font-semibold">Recurring monthly obligations</legend>
       {obligations.map((item, index) => <div className="grid items-end gap-2 sm:grid-cols-2 xl:grid-cols-[2fr_1.2fr_1fr_1fr_auto]" key={item.id}>
