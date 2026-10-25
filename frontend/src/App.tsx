@@ -84,6 +84,7 @@ type Forecast = {
   first_shortage_date: string | null;
   min_balance_p50: number;
   drivers: ForecastDriver[];
+  warnings?: string[];
   meta?: { delay_model_used?: string; delay_model_requested?: string; data_source?: string;
     payment_model?: { status: string; message: string }; model_training_source?: string };
 };
@@ -249,6 +250,12 @@ function App({ account, onSignout }: { account: Account; onSignout: () => Promis
       (business.sales_plan?.monthly_amount ?? 0) > 0;
   }, [business]);
 
+  const hasExpenseWarning = useMemo(() => {
+    if (!business) return false;
+    if (forecast?.warnings && forecast.warnings.length > 0) return true;
+    return (business.obligations?.length ?? 0) === 0 && (business.sales_plan?.monthly_amount ?? 0) === 0;
+  }, [business, forecast]);
+
   const runwayDays = useMemo(() => {
     if (!business || !forecast) return null;
     const firstBelowFloor = forecast.p50.findIndex(
@@ -283,7 +290,7 @@ function App({ account, onSignout }: { account: Account; onSignout: () => Promis
     );
   }
 
-  const tone = hasForecastInputs ? shortageTone(forecast.shortage_prob) : "warning";
+  const tone = hasExpenseWarning ? "warning" : hasForecastInputs ? shortageTone(forecast.shortage_prob) : "warning";
   const isDemo = business.data_source === 'synthetic_demo';
   const isSynthetic = isDemo || business.data_source === 'synthetic' || /demo|synthetic/i.test(business.name);
   const firstShortage =
@@ -417,6 +424,7 @@ function App({ account, onSignout }: { account: Account; onSignout: () => Promis
               firstShortage={firstShortage}
               tone={tone}
               hasForecastInputs={hasForecastInputs}
+              hasExpenseWarning={hasExpenseWarning}
               onNavigate={setActiveTab}
             />
           )}
@@ -425,6 +433,7 @@ function App({ account, onSignout }: { account: Account; onSignout: () => Promis
               business={business}
               forecast={forecast}
               hasForecastInputs={hasForecastInputs}
+              hasExpenseWarning={hasExpenseWarning}
               onNavigate={setActiveTab}
             />
           )}
@@ -528,6 +537,7 @@ function Dashboard({
   firstShortage,
   tone,
   hasForecastInputs,
+  hasExpenseWarning,
   onNavigate,
 }: {
   business: Business;
@@ -537,6 +547,7 @@ function Dashboard({
   firstShortage: string | null;
   tone: "danger" | "warning" | "success";
   hasForecastInputs: boolean;
+  hasExpenseWarning: boolean;
   onNavigate: (tab: TabId) => void;
 }) {
   const cards: {
@@ -556,16 +567,18 @@ function Dashboard({
     },
     {
       label: "Cash runway",
-      value: !hasForecastInputs ? "—" : runwayDays === null ? "90+" : `${runwayDays} days`,
+      value: hasExpenseWarning || !hasForecastInputs ? "—" : runwayDays === null ? "90+" : `${runwayDays} days`,
       subtext:
-        !hasForecastInputs
+        hasExpenseWarning
+          ? "Add expenses to calculate runway"
+          : !hasForecastInputs
           ? "Add expected receipts and planned outflows"
           : runwayDays === null
           ? "Above safety floor for 90 days"
           : `Safety floor crossed ${formatDate(firstShortage)}`,
       icon: Gauge,
       accent: "blue",
-      trend: hasForecastInputs ? runwayDays === null ? "up" : "down" : undefined,
+      trend: !hasExpenseWarning && hasForecastInputs ? runwayDays === null ? "up" : "down" : undefined,
     },
     {
       label: "Overdue receivables",
@@ -576,8 +589,10 @@ function Dashboard({
     },
     {
       label: "Shortage probability",
-      value: hasForecastInputs ? probability(forecast.shortage_prob) : "—",
-      subtext: hasForecastInputs
+      value: hasExpenseWarning ? "—" : hasForecastInputs ? probability(forecast.shortage_prob) : "—",
+      subtext: hasExpenseWarning
+        ? "Add expenses to estimate shortage risk"
+        : hasForecastInputs
         ? "Chance of falling below your safety floor"
         : "Add business records before interpreting this estimate",
       icon: AlertTriangle,
@@ -614,7 +629,9 @@ function Dashboard({
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold leading-6 sm:text-[15px]">
-            {!hasForecastInputs
+            {hasExpenseWarning
+              ? "Add your expenses (or connect bank data) to see shortage risk"
+              : !hasForecastInputs
               ? "Add business records to estimate cash risk"
               : forecast.shortage_prob >= 0.5
               ? `Cash shortage likely around ${firstShortage ? shortDate(firstShortage) : "the forecast period"} (${probability(forecast.shortage_prob)} probability)`
@@ -623,7 +640,9 @@ function Dashboard({
                 : `Looking steady — just ${probability(forecast.shortage_prob)} chance of a cash shortage`}
           </p>
           <p className="mt-0.5 text-xs opacity-80">
-            {!hasForecastInputs
+            {hasExpenseWarning
+              ? (forecast.warnings?.[0] ?? "No expenses entered: forecast only shows invoice receipts. Add regular outflows to see when cash dips.")
+              : !hasForecastInputs
               ? "The current forecast reflects cash on hand only; it is not a risk assessment."
               : forecast.shortage_prob >= 0.5
               ? "Take a look at your forecast and consider an action."
@@ -632,9 +651,9 @@ function Dashboard({
         </div>
         <button
           className="hidden items-center gap-1.5 rounded-xl bg-white/15 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/25 sm:flex"
-          onClick={() => onNavigate(hasForecastInputs ? "forecast" : "ledger")}
+          onClick={() => onNavigate(hasExpenseWarning ? "expenses" : hasForecastInputs ? "forecast" : "ledger")}
         >
-          {hasForecastInputs ? "View forecast" : "Add records"} <ArrowUpRight size={14} />
+          {hasExpenseWarning ? "Add expenses" : hasForecastInputs ? "View forecast" : "Add records"} <ArrowUpRight size={14} />
         </button>
       </div>
 
@@ -643,6 +662,35 @@ function Dashboard({
           <KpiCard key={card.label} {...card} />
         ))}
       </div>
+
+      {hasExpenseWarning && (
+        <aside aria-label="Missing expenses warning" className="mb-5 rounded-2xl border border-amber-300 bg-amber-50 p-5 text-amber-950 shadow-sm sm:p-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3.5">
+              <div className="grid size-11 shrink-0 place-items-center rounded-2xl bg-amber-200 text-amber-900">
+                <CalendarDays size={22} />
+              </div>
+              <div>
+                <h3 className="text-base font-semibold text-amber-950">
+                  Add your expenses (or connect bank data) to see shortage risk
+                </h3>
+                <p className="mt-1 max-w-2xl text-xs leading-5 text-amber-900">
+                  {forecast.warnings?.[0] ?? "No expenses entered: forecast only shows invoice receipts"}.
+                  Because no payroll, rent, EMI, or supplier bills are recorded, the forecast line below only tracks invoice receipts.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              className="button-primary shrink-0 !bg-amber-600 hover:!bg-amber-700 !text-white"
+              onClick={() => onNavigate("expenses")}
+            >
+              <CalendarDays size={16} />
+              Add your expenses
+            </button>
+          </div>
+        </aside>
+      )}
 
       {hasForecastInputs ? (
         <section className="panel-card mt-5 p-5 sm:p-6">
@@ -660,6 +708,11 @@ function Dashboard({
               Explore forecast <ArrowUpRight size={14} />
             </button>
           </div>
+          {hasExpenseWarning && (
+            <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50/70 px-3.5 py-2 text-xs text-amber-900">
+              <strong>Receipts-only projection:</strong> Operational expenses are missing. Enter recurring expenses to project true cash burn.
+            </div>
+          )}
           <ForecastChart forecast={forecast} compact />
         </section>
       ) : (
@@ -832,11 +885,13 @@ function ForecastPage({
   business,
   forecast,
   hasForecastInputs,
+  hasExpenseWarning,
   onNavigate,
 }: {
   business: Business;
   forecast: Forecast;
   hasForecastInputs: boolean;
+  hasExpenseWarning: boolean;
   onNavigate: (tab: TabId) => void;
 }) {
   return (
@@ -861,7 +916,35 @@ function ForecastPage({
           </div>
         }
       />
-      {!hasForecastInputs && (
+      {hasExpenseWarning && (
+        <aside aria-label="Missing expenses notice" className="mb-6 rounded-2xl border border-amber-300 bg-amber-50 p-5 text-amber-950 shadow-sm sm:p-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3.5">
+              <div className="grid size-11 shrink-0 place-items-center rounded-2xl bg-amber-200 text-amber-900">
+                <CalendarDays size={22} />
+              </div>
+              <div>
+                <h3 className="text-base font-semibold text-amber-950">
+                  Add your expenses (or connect bank data) to see shortage risk
+                </h3>
+                <p className="mt-1 max-w-2xl text-xs leading-5 text-amber-900">
+                  {forecast.warnings?.[0] ?? "No expenses entered: forecast only shows invoice receipts"}.
+                  Without recurring obligations (payroll, rent, taxes) or supplier bills, cash only accumulates or stays flat from receivables. Enter your planned expenses to calculate a true cash shortage risk.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              className="button-primary shrink-0 !bg-amber-600 hover:!bg-amber-700 !text-white"
+              onClick={() => onNavigate("expenses")}
+            >
+              <CalendarDays size={16} />
+              Add your expenses
+            </button>
+          </div>
+        </aside>
+      )}
+      {!hasForecastInputs && !hasExpenseWarning && (
         <aside aria-label="Forecast inputs guidance" className="mb-6 rounded-2xl border border-amber-200 bg-amber-50/90 p-5 text-amber-950">
           <div className="flex items-start gap-3">
             <span className="kpi-icon driver-amber mt-0.5"><FileText size={18} /></span>
@@ -903,6 +986,20 @@ function ForecastPage({
           </div>
           <ForecastLegend />
         </div>
+        {hasExpenseWarning && (
+          <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50/70 px-4 py-2.5 text-xs text-amber-900 flex flex-wrap items-center justify-between gap-2">
+            <span>
+              <strong>Notice:</strong> This projection only shows expected customer collections. Real-world cash will be significantly lower once expenses are included.
+            </span>
+            <button
+              type="button"
+              className="font-medium underline hover:text-amber-950"
+              onClick={() => onNavigate("expenses")}
+            >
+              Add expenses now
+            </button>
+          </div>
+        )}
         <ForecastChart forecast={forecast} />
         <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 border-t border-slate-100 pt-4 text-xs text-slate-500">
           <span>
@@ -915,7 +1012,7 @@ function ForecastPage({
           </span>
           <span>
             <span className="font-semibold text-slate-700">Shortage chance</span>{" "}
-            {hasForecastInputs ? probability(forecast.shortage_prob) : "—"}
+            {hasExpenseWarning ? "Unestimated (no expenses)" : hasForecastInputs ? probability(forecast.shortage_prob) : "—"}
           </span>
         </div>
       </section>

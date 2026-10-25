@@ -106,6 +106,20 @@ def annotated(forecast, business, requested, business_id):
     if requested == 'survival':
         forecast['meta']['payment_model'] = customer_behavior.status(customer_behavior.model_result(business, business_id))
         forecast['meta']['model_training_source'] = 'this_business'
+
+    obligations = business.get('obligations') or []
+    sales_plan = business.get('sales_plan') or {}
+    monthly_sales = float(sales_plan.get('monthly_amount', 0) or 0)
+    warnings = list(forecast.get('warnings') or [])
+    if not obligations and monthly_sales == 0:
+        warning_msg = "No expenses entered: forecast only shows invoice receipts"
+        if warning_msg not in warnings:
+            warnings.append(warning_msg)
+    elif not obligations:
+        warning_msg = "No recurring expenses entered: forecast only reflects income"
+        if warning_msg not in warnings:
+            warnings.append(warning_msg)
+    forecast['warnings'] = warnings
     return forecast
 
 
