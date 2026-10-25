@@ -7,7 +7,7 @@ export type ScenarioChange =
 export type ScenarioDefinition = { name: string; changes: ScenarioChange[] };
 export type SavedScenario = ScenarioDefinition & { id: string; created_at: string; updated_at: string };
 export type ChangeDraft = { key: string; type: ScenarioChange['type']; customer_id?: string;
-  extra_days?: string; pct?: string; amount?: string; date?: string; category?: string; label?: string };
+  extra_days?: string; pct?: string; amount?: string; date?: string; category?: string; label?: string; invoice_id?: string; installments?: { date: string; amount: string }[]; reliability?: string };
 export type PlannerDraft = { name: string; changes: ChangeDraft[] };
 export type PlannerBusiness = { as_of: string; customers: { id: string; name: string; segment: string }[];
   invoices: { id: string; customer_id: string; amount: number; received_amount?: number; status: string; due_date: string }[];
@@ -69,7 +69,14 @@ export function buildDefinition(draft: PlannerDraft, business: PlannerBusiness) 
       singles.add(row.type);
       changes.push({ type: row.type, extra_days: extra });
     } else {
-      errors.push(`${label}: revised payment schedules require the invoice schedule editor.`);
+      const invoice = business.invoices.find(item => item.id === row.invoice_id && item.status === 'open');
+      const installments = row.installments ?? [];
+      const total = installments.reduce((sum, item) => sum + Number(item.amount), 0);
+      const outstanding = invoice ? invoice.amount - (invoice.received_amount ?? 0) : 0;
+      if (!invoice) errors.push(`${label}: choose an open invoice.`);
+      if (!installments.length || installments.length > 6 || installments.some(item => !Number.isSafeInteger(Number(item.amount)) || Number(item.amount) <= 0 || !item.date || item.date < business.as_of || item.date > horizonEnd(business.as_of))) errors.push(`${label}: enter up to 6 positive instalments dated within the forecast horizon.`);
+      if (total !== outstanding) errors.push(`${label}: instalments must total the outstanding amount.`);
+      changes.push({ type: row.type, invoice_id: row.invoice_id, installments: installments.map(item => ({ date: item.date, amount: Number(item.amount) })), reliability: row.reliability ? Number(row.reliability) : .9 });
     }
   }
   return { errors, definition: { name: draft.name.trim() || 'Unsaved scenario', changes } as ScenarioDefinition };
