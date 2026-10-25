@@ -53,4 +53,10 @@
 - **Open Issues**: Integration into the forecast engine remains a later batch step.
 - **Tests**: `python -m pytest backend/tests/test_payment_adjust.py -q` (10 passed)
 
+## Module batch 2: forecast accuracy helpers
+- **Status**: DONE
+- **Files Changed**: `backend/modules/accuracy.py`, `backend/tests/test_accuracy.py`
+- **Open Issues**: API and forecast-log integration remains a later batch step.
+- **Tests**: `python -m pytest backend/tests/test_accuracy.py -q` (9 passed)
+
 
