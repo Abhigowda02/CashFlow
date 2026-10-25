@@ -70,4 +70,10 @@
 - **Files Changed**: removed `.venv`, `.pytest_cache`, `frontend/dist`, `data/payment_date.csv`
 - **Open Issues**: `backend/.local/saas.sqlite3` is locked by an unidentified external process after the locally started API was stopped. `.gitignore` already covers all requested generated paths.
 
+## P09: UI-ready forecast API
+- **Status**: PARTIAL
+- **Files Changed**: `backend/routers/forecast_view.py`, `backend/main.py`, `backend/tests/test_forecast_view.py`
+- **Open Issues**: The legacy monolithic frontend has not yet been switched to this endpoint; invoice payment distributions and accuracy history need their later integrations.
+- **Tests**: forecast-view test (1 passed), `python -m engine.check_contract` (PASS)
+
 

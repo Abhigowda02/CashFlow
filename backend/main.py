@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from . import clock, ledger, auth, database, customer_behavior, expenses, scenarios, pdf_import
 from .routers.invoices import router as invoices_router
+from .routers.forecast_view import router as forecast_view_router
 from .scenarios import Scenario
 from sqlalchemy import update
 
@@ -185,6 +186,7 @@ async def lifespan(app):
 app = FastAPI(title="CashFlow API", lifespan=lifespan)
 app.include_router(auth.router)
 app.include_router(invoices_router)
+app.include_router(forecast_view_router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=auth.ALLOWED_ORIGINS,
