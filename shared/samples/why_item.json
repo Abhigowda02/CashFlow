@@ -1,0 +1,8 @@
+{
+  "type": "late_invoice",
+  "ref": "INV-2026-074",
+  "text": "Sharma Cottons Rs 3,50,000 expected ~18 days late based on historical payment pattern",
+  "amount": 350000,
+  "expected_date": "2026-11-15",
+  "spread_days": 7
+}

@@ -1,0 +1,7 @@
+{
+  "invoice_id": "INV-2026-074",
+  "expected_pay_date": "2026-11-15",
+  "p_by_30d": 0.35,
+  "prob_late": 0.72,
+  "risk": "high"
+}

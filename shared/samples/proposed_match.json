@@ -1,0 +1,10 @@
+{
+  "id": "PROP-MATCH-001",
+  "transaction_id": "TXN-20261024-001",
+  "invoice_id": "INV-2026-074",
+  "bill_id": null,
+  "confidence": 0.92,
+  "match_type": "invoice_receipt",
+  "notes": "Exact amount match Rs 2,75,000 for open invoice INV-2026-074 (Sharma Cottons)",
+  "status": "pending"
+}

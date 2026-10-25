@@ -1,0 +1,11 @@
+{
+  "id": "INV-2026-089",
+  "customer_id": "CUST-PATEL-TEX",
+  "customer_name": "Patel Textiles Pvt Ltd",
+  "amount": 450000,
+  "issue_date": "2026-10-01",
+  "due_date": "2026-10-31",
+  "status": "open",
+  "paid_date": null,
+  "description": "500 bolts of combed cotton shirting fabric"
+}

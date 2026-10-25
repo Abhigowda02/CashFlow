@@ -1,0 +1,15 @@
+{
+  "id": "PROP-OBL-001",
+  "name": "Warehouse Lease - Andheri East",
+  "amount": 150000,
+  "frequency": "monthly",
+  "day_of_month": 5,
+  "category": "rent",
+  "confidence": 0.95,
+  "detected_from_transaction_ids": [
+    "TXN-20260805-012",
+    "TXN-20260905-018",
+    "TXN-20261005-021"
+  ],
+  "status": "pending"
+}

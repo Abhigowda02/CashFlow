@@ -1,0 +1,14 @@
+{
+  "id": "REM-2026-042",
+  "invoice_ids": [
+    "INV-2026-074"
+  ],
+  "customer_id": "CUST-SHARMA",
+  "rung": 2,
+  "channel": "whatsapp",
+  "subject": "Payment Reminder: Invoice INV-2026-074 for Sharma Cottons",
+  "body": "Dear Ramesh ji, Greetings from Apex Enterprises. Invoice INV-2026-074 of Rs 3,50,000 was due on 28-Oct-2026. Please let us know when we may expect clearance, or pay directly via https://pay.apex.in/inv-074. Best regards.",
+  "status": "draft",
+  "created_at": "2026-10-25T09:15:00Z",
+  "sent_at": null
+}

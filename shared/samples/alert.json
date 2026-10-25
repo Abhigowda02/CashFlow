@@ -1,0 +1,11 @@
+{
+  "id": "ALT-2026-001",
+  "kind": "shortage_warning",
+  "severity": "critical",
+  "title": "Projected Cash Shortage on 11 Nov",
+  "body": "Operating cash projected to dip below safety floor Rs 1,00,000 in 18 days due to concentrated vendor payables and slow receivables.",
+  "created_at": "2026-10-25T08:00:00Z",
+  "read": false,
+  "dedupe_key": "shortage:2026-11-11:floor",
+  "link": "/forecast"
+}

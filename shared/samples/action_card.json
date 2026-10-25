@@ -1,0 +1,26 @@
+{
+  "id": "ACT-2026-01",
+  "type": "chase_invoice",
+  "title": "Chase Sharma Cottons via WhatsApp Escalation",
+  "who": "Sharma Cottons (Ramesh Sharma)",
+  "amount": 350000,
+  "by_date": "2026-11-05",
+  "effect": {
+    "shortage_prob_before": 0.68,
+    "shortage_prob_after": 0.28,
+    "first_shortage_before": "2026-11-11",
+    "first_shortage_after": "2026-12-05",
+    "runway_days_gained": 24
+  },
+  "cost": 0,
+  "risk": "low",
+  "note": "Follow up Rung 2: Friendly WhatsApp nudge with attached statement of account and UPI QR link.",
+  "execute": {
+    "kind": "chase_whatsapp",
+    "payload": {
+      "customer_id": "CUST-SHARMA",
+      "invoice_id": "INV-2026-074",
+      "template_id": "payment_reminder_rung_2"
+    }
+  }
+}
