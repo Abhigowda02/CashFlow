@@ -65,4 +65,9 @@
 - **Open Issues**: Endpoint integration remains a later batch step.
 - **Tests**: `python -m pytest backend/tests/test_forecast_view_builder.py -q` (8 passed)
 
+## P00 follow-up: generated-artifact cleanup
+- **Status**: PARTIAL
+- **Files Changed**: removed `.venv`, `.pytest_cache`, `frontend/dist`, `data/payment_date.csv`
+- **Open Issues**: `backend/.local/saas.sqlite3` is locked by an unidentified external process after the locally started API was stopped. `.gitignore` already covers all requested generated paths.
+
 
