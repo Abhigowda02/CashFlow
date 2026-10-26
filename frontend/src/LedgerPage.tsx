@@ -180,9 +180,10 @@ export default function LedgerPage({ apiUrl, business, onChanged }: Props) {
         { rows: nonDupeRows, mode: 'append', confirm_currency_inr: true, keep_duplicates: false },
       );
       await onChanged();
-      setCsvAppendMessage(`Added ${result.invoice_count} invoice${result.invoice_count === 1 ? '' : 's'} to the existing workspace. Cash, receipts, expenses and supplier bills were preserved.`);
+      setMessage(`Added ${result.invoice_count} invoice${result.invoice_count === 1 ? '' : 's'}. All imported invoices are now shown below.`);
       setCsvAppendRows([]); setCsvAppendFile(null);
       setConfirmCsvAppend(false); setConfirmCsvCurrency(false);
+      setPage(0); setView('invoices');
     } catch (e) { setCsvAppendError(e instanceof Error ? e.message : 'Could not add invoices'); }
     finally { setCsvAppendBusy(false); }
   }
@@ -218,7 +219,7 @@ export default function LedgerPage({ apiUrl, business, onChanged }: Props) {
     {error && <p role="alert" className="rounded-xl bg-rose-50 p-4 text-sm text-rose-800">{error}</p>}
     {message && <p role="status" className="rounded-xl bg-emerald-50 p-4 text-sm text-emerald-800">{message}</p>}
     <div>
-      {view === 'import' && <form className="panel-card max-w-2xl space-y-4 p-6" onSubmit={importFile}>
+      {false && view === 'import' && <form className="panel-card max-w-2xl space-y-4 p-6" onSubmit={importFile}>
         <h2 className="font-semibold">Import invoices</h2>
         <p className="text-xs leading-5 text-slate-500">CSV or Excel (.xlsx) replaces the current workspace, including its receipt log and plan. Up to 2,000 rows and 5 MB. Use whole INR amounts and ISO dates. For PDF, use the separate review-and-add workflow below.</p>
         <div className="rounded-xl border border-indigo-100 bg-indigo-50/70 p-4">
@@ -313,8 +314,15 @@ export default function LedgerPage({ apiUrl, business, onChanged }: Props) {
       {view === 'import' && <section className="panel-card max-w-4xl space-y-5 p-5 sm:p-6">
         <div className="flex items-start gap-3">
           <span className="kpi-icon driver-blue mt-0.5">📄</span>
-          <div><h2 className="font-semibold">Add invoices from CSV (append)</h2>
-            <p className="mt-1 text-xs leading-5 text-slate-500">Add invoices to your existing workspace without replacing any data. Your current cash, receipts, expenses, supplier bills and customer relationships are preserved. Duplicate invoice IDs are flagged.</p>
+          <div><h2 className="font-semibold">Import invoices</h2>
+            <p className="mt-1 text-xs leading-5 text-slate-500">Every accepted invoice is added to the current workspace and appears in the main invoice list. Existing cash, receipts, expenses, supplier bills and customer relationships are preserved. Duplicate invoice IDs are skipped.</p>
+          </div>
+        </div>
+        <div className="rounded-xl border border-indigo-100 bg-indigo-50/70 p-4">
+          <p className="text-xs font-semibold text-indigo-950">Download an invoice file:</p>
+          <div className="mt-2 flex flex-wrap gap-2.5">
+            <a className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700" download="blank_invoice_template.csv" href={`data:text/csv;charset=utf-8,${encodeURIComponent(template)}`}>Blank CSV template</a>
+            <a className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-900" download="stress_test_shortfall.csv" href="/sample_data/stress_test_shortfall.csv">Sample overdue dataset</a>
           </div>
         </div>
         <form className="flex flex-col gap-3 sm:flex-row sm:items-end" onSubmit={previewCsvAppend}>
