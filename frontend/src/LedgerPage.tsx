@@ -333,6 +333,7 @@ export default function LedgerPage({ apiUrl, business, onChanged }: Props) {
           <div className="mt-2 flex flex-wrap gap-2.5">
             <a className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700" download="blank_invoice_template.csv" href={`data:text/csv;charset=utf-8,${encodeURIComponent(template)}`}>Blank CSV template</a>
             <a className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-900" download="stress_test_shortfall.csv" href="/sample_data/stress_test_shortfall.csv">Sample overdue dataset</a>
+            <a className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-900" download="shortage_then_recovery_3000.csv" href="/sample_data/shortage_then_recovery_3000.csv">3,000-invoice recovery dataset</a>
           </div>
         </div>
         <form className="flex flex-col gap-3 sm:flex-row sm:items-end" onSubmit={previewCsvAppend}>

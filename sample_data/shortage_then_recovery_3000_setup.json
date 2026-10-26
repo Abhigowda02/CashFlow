@@ -1,0 +1,30 @@
+{
+  "synthetic": true,
+  "observation_date": "2026-10-26",
+  "available_cash_inr": 200000,
+  "safety_floor_inr": 500000,
+  "monthly_sales_inr": 15000000,
+  "payment_terms_days": 30,
+  "sales_uncertainty_percent": 15,
+  "recurring_expenses": [
+    {
+      "name": "Payroll",
+      "category": "salary",
+      "amount_inr": 7000000,
+      "day_of_month": 1
+    },
+    {
+      "name": "Rent and utilities",
+      "category": "rent",
+      "amount_inr": 1500000,
+      "day_of_month": 5
+    },
+    {
+      "name": "Loan EMI",
+      "category": "loan",
+      "amount_inr": 1000000,
+      "day_of_month": 10
+    }
+  ],
+  "expected_behavior": "Cash starts below the safety floor, then may recover as receivables and future sales arrive. This is cash flow, not accounting profit."
+}
