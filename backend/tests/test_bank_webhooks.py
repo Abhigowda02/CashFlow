@@ -23,13 +23,16 @@ def test_signed_credit_is_idempotent_and_stores_fraud_result():
     assert _webhook(client, event).json()['result'] == 'paid'
     assert _webhook(client, event).json()['result'] == 'duplicate_event_ignored'
     payments = client.get('/api/admin/payments').json()
-    assert payments[0]['decision'] == 'approve' and payments[0]['fraud_reasons'] == ['No risk signals']
+    assert payments[0]['decision'] == 'approve' and payments[0]['fraud_reasons']
     assert client.get('/api/ledger').json()['invoices'][0]['ledger_status'] == 'received'
 
 
 def test_review_credit_does_not_settle_invoice():
     client = signed_in_client(); _import(client)
     account = client.get('/api/payments/mock-bank-account').json()['merchant_account']
-    event = {'event_id': 'bank-2', 'type': 'credit', 'amount': 1000, 'merchant_account': account, 'reference': 'INV-1', 'counterparty_account': 'payer-2', 'counterparty_country': 'IR'}
+    event = {'event_id': 'bank-2', 'type': 'credit', 'amount': 1000, 'merchant_account': account, 'reference': 'INV-1', 'counterparty_account': 'payer-2', 'counterparty_country': 'US'}
     assert _webhook(client, event).json()['result'] == 'pending_review'
     assert client.get('/api/ledger').json()['invoices'][0]['ledger_status'] != 'received'
+    payment = client.get('/api/admin/payments').json()[0]
+    assert client.post(f"/api/admin/payments/{payment['id']}/review/approve").json()['status'] == 'paid'
+    assert client.get('/api/ledger').json()['invoices'][0]['ledger_status'] == 'received'

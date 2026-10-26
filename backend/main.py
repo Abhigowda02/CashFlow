@@ -13,7 +13,7 @@ from .routers.invoices import router as invoices_router
 from .routers.forecast_view import router as forecast_view_router
 from .routers.reminders import router as reminders_router
 from .routers.alerts import router as alerts_router
-from .routers.bank_webhooks import router as bank_webhooks_router
+from .routers.bank_webhooks import router as bank_webhooks_router, webhook as bank_webhook
 from .scenarios import Scenario
 from sqlalchemy import update
 
@@ -204,6 +204,7 @@ app.include_router(forecast_view_router)
 app.include_router(reminders_router)
 app.include_router(alerts_router)
 app.include_router(bank_webhooks_router)
+app.post('/webhooks/bank')(bank_webhook)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=auth.ALLOWED_ORIGINS,

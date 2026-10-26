@@ -60,9 +60,9 @@ def _credit(business_id: str, event: dict) -> dict:
     if decision == 'approve' and event['amount'] == invoice['amount'] - invoice.get('received_amount', 0):
         ledger.record_receipt(business, invoice['id'], event['amount'], event.get('date', business['as_of']), event['event_id'], business_id)
         return {'result': 'paid', 'payment_id': payment_id, 'fraud': fraud}
-    invoice['payment_status'] = 'pending_review' if decision == 'review' else 'flagged_fraud' if decision == 'block' else 'amount_mismatch'
+    invoice['status'] = 'pending_review' if decision == 'review' else 'flagged_fraud' if decision == 'block' else 'amount_mismatch'
     ledger.save_workspace_payload(business, business_id)
-    return {'result': invoice['payment_status'], 'payment_id': payment_id, 'fraud': fraud}
+    return {'result': invoice['status'], 'payment_id': payment_id, 'fraud': fraud}
 
 def _debit(business_id: str, event: dict) -> dict:
     business = ledger.load_business(business_id); obligation = {'id': 'bank_' + event['event_id'], 'name': event.get('counterparty_name', 'Bank debit'), 'amount': event['amount'], 'day_of_month': 1, 'frequency': 'monthly', 'category': 'other', 'status': 'flagged_obligation', 'description': event.get('description', '')}
@@ -73,3 +73,19 @@ def _debit(business_id: str, event: dict) -> dict:
 def payment_admin(user: auth.Account = Depends(auth.require_user)):
     with db.engine().connect() as conn: rows = conn.execute(select(db.payments).where(db.payments.c.business_id == user.business_id).order_by(db.payments.c.created_at.desc())).mappings().all()
     return [{**dict(row), 'fraud_reasons': json.loads(row['fraud_reasons'])} for row in rows]
+
+@router.post('/admin/payments/{payment_id}/review/{action}')
+def review_payment(payment_id: str, action: str, user: auth.Account = Depends(auth.require_user)):
+    if action not in {'approve', 'reject'}: raise HTTPException(400, 'Action must be approve or reject')
+    with db.transaction() as conn:
+        payment = conn.execute(select(db.payments).where(db.payments.c.business_id == user.business_id, db.payments.c.id == payment_id).with_for_update()).mappings().first()
+        if not payment or payment['status'] != 'pending_review': raise HTTPException(404, 'Payment is not pending review')
+        event = conn.execute(select(db.bank_events.c.payload).where(db.bank_events.c.business_id == user.business_id, db.bank_events.c.event_id == payment['event_id'])).scalar_one()
+        conn.execute(update(db.payments).where(db.payments.c.business_id == user.business_id, db.payments.c.id == payment_id).values(status='succeeded' if action == 'approve' else 'rejected_by_reviewer', reviewed_at=_now()))
+    business = ledger.load_business(user.business_id); invoice = next((item for item in business['invoices'] if item['id'] == payment['invoice_id']), None)
+    if invoice is None: raise HTTPException(400, 'Matched invoice no longer exists')
+    if action == 'approve':
+        ledger.record_receipt(business, invoice['id'], payment['amount'], json.loads(event).get('date', business['as_of']), payment['event_id'], user.business_id)
+    else:
+        invoice['status'] = 'rejected'; ledger.save_workspace_payload(business, user.business_id)
+    return {'status': 'paid' if action == 'approve' else 'rejected'}
