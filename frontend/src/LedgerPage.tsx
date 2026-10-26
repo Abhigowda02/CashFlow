@@ -162,9 +162,19 @@ export default function LedgerPage({ apiUrl, business, onChanged }: Props) {
         `${apiUrl}/invoices/preview`,
         { filename: csvAppendFile.name, content_base64: btoa(binary) },
       );
-      setCsvAppendRows(result.rows);
-      const dupeCount = result.rows.filter((r: any) => r.flags?.includes('duplicate')).length;
-      if (dupeCount) setCsvAppendError(`${dupeCount} duplicate invoice(s) found. Remove duplicates or review them before adding.`);
+      const validRows = result.rows.filter((row: any) => !(row.flags || []).length);
+      const skippedRows = result.rows.filter((row: any) => (row.flags || []).length);
+      if (!validRows.length) {
+        setCsvAppendRows(skippedRows);
+        throw new Error('No new valid invoices were found. Duplicate or invalid rows are shown below.');
+      }
+      const saved = await apiRequest<{saved: boolean; invoice_count: number}>(
+        `${apiUrl}/invoices/commit`,
+        { rows: validRows, mode: 'append', confirm_currency_inr: true, keep_duplicates: false },
+      );
+      await onChanged();
+      setMessage(`Imported ${saved.invoice_count} invoice${saved.invoice_count === 1 ? '' : 's'} and added them to the main invoice list.${skippedRows.length ? ` Skipped ${skippedRows.length} duplicate or invalid row${skippedRows.length === 1 ? '' : 's'}.` : ''}`);
+      setCsvAppendRows([]); setCsvAppendFile(null); setPage(0); setView('invoices');
     } catch (e) { setCsvAppendError(e instanceof Error ? e.message : 'Could not preview this CSV'); }
     finally { setCsvAppendBusy(false); }
   }
@@ -327,7 +337,7 @@ export default function LedgerPage({ apiUrl, business, onChanged }: Props) {
         </div>
         <form className="flex flex-col gap-3 sm:flex-row sm:items-end" onSubmit={previewCsvAppend}>
           <label className="block min-w-0 flex-1 text-xs">CSV file with invoices to add, max 5 MB<input className="field-input mt-1" required type="file" accept=".csv" onChange={e => { setCsvAppendFile(e.target.files?.[0] ?? null); setCsvAppendRows([]); setCsvAppendError(''); setCsvAppendMessage(''); setConfirmCsvAppend(false); setConfirmCsvCurrency(false); }} /></label>
-          <button className="button-secondary shrink-0" disabled={csvAppendBusy || !csvAppendFile}>{csvAppendBusy && !csvAppendRows.length ? 'Reading CSV…' : 'Preview invoices'}</button>
+          <button className="button-primary shrink-0" disabled={csvAppendBusy || !csvAppendFile}>{csvAppendBusy ? 'Importing invoices…' : 'Import invoices'}</button>
         </form>
         {csvAppendError && <p role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm leading-5 text-amber-900">{csvAppendError}</p>}
         {csvAppendMessage && <p role="status" className="rounded-xl bg-emerald-50 p-3 text-sm leading-5 text-emerald-800">{csvAppendMessage}</p>}
