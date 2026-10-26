@@ -1,4 +1,4 @@
-invoice_id,customer_id,customer_name,segment,amount,issue_date,due_date,status,received_amount,paid_date,currency
+invoice_id,customer_id,customer_name,segment,amount,issue_date,due_date,status,received_amount,paid_date,currency,email,phone
 INV-2026-001,C-STEEL,Bharat Steel Works,corporate,450000,2026-07-10,2026-08-10,open,150000,,INR
 INV-2026-002,C-STEEL,Bharat Steel Works,corporate,320000,2026-08-01,2026-09-01,open,0,,INR
 INV-2026-003,C-STEEL,Bharat Steel Works,corporate,280000,2026-09-05,2026-10-05,open,0,,INR

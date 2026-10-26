@@ -148,8 +148,8 @@ def import_invoices(filename, content, name, as_of, opening_cash, safety_floor, 
         if segment not in ['small', 'corporate', 'government']:
             raise ValueError('Segment must be small, corporate, or government')
         customer = dict(id=cid, name=row.get('customer_name', '').strip() or cid, segment=segment)
-        if row.get('email', '').strip(): customer['email'] = row['email'].strip()
-        if row.get('phone', '').strip(): customer['phone'] = row['phone'].strip()
+        if str(row.get('email') or '').strip(): customer['email'] = str(row['email']).strip()
+        if str(row.get('phone') or '').strip(): customer['phone'] = str(row['phone']).strip()
         if cid in customers and customers[cid] != customer:
             raise ValueError(f'Conflicting customer details for {cid}')
         customers[cid] = customer
