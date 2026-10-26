@@ -176,7 +176,6 @@ export default function LedgerPage({ apiUrl, business, onChanged }: Props) {
       setLedger(updatedLedger);
       setMessage(`Imported ${saved.invoice_count} invoice${saved.invoice_count === 1 ? '' : 's'} and added them to the main invoice list.${skippedRows.length ? ` Skipped ${skippedRows.length} duplicate or invalid row${skippedRows.length === 1 ? '' : 's'}.` : ''}`);
       setCsvAppendRows([]); setCsvAppendFile(null); setPage(0); setView('invoices');
-      void onChanged().catch(() => setMessage(`Imported ${saved.invoice_count} invoice${saved.invoice_count === 1 ? '' : 's'}. The invoice list is current; forecast refresh is still loading.`));
     } catch (e) { setCsvAppendError(e instanceof Error ? e.message : 'Could not preview this CSV'); }
     finally { setCsvAppendBusy(false); }
   }

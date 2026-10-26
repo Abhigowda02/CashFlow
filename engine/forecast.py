@@ -63,6 +63,12 @@ def run_forecast(
         delay_model = n_sims
         n_sims = 500
 
+    # A 3,000-invoice workspace otherwise expands to millions of per-invoice
+    # draws and makes the interactive UI appear stuck. Keep the estimate
+    # available with a smaller, explicitly reported simulation count.
+    if len(business.get("invoices") or []) >= 1_000:
+        n_sims = min(n_sims, 25)
+
     # Robustness: never mutate input dicts
     business = copy.deepcopy(business)
     if scenario is not None:

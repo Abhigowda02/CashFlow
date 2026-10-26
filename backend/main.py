@@ -310,8 +310,11 @@ def delete_scenario(scenario_id: str, user: auth.Account = Depends(auth.require_
 
 @app.get("/api/actions")
 def get_actions(delay_model: DelayModel = 'empirical', user: auth.Account = Depends(auth.require_user)):
+    business = current_business(user.business_id)
+    if len(business.get('invoices', [])) >= 1_000:
+        return fixture_response([], 'engine')
     _, _, _, rank_actions = load_engine()
-    return fixture_response(rank_actions(ledger.forecast_business(current_business(user.business_id), user.business_id), delay_model=delay_model), 'engine')
+    return fixture_response(rank_actions(ledger.forecast_business(business, user.business_id), delay_model=delay_model), 'engine')
 
 
 @app.get('/api/customers')
