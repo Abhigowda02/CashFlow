@@ -311,28 +311,47 @@ def commit_reviewed_invoices(rows, mode, business_id, keep_duplicates=False):
         if row is None:
             raise ValueError('Complete business setup first')
         business = json.loads(row[0])
-        incoming, ids = [], set()
+        incoming, ids, customer_candidates = [], set(), {}
         existing_ids = {invoice['id'] for invoice in business.get('invoices', [])}
         for draft in rows:
-            flags = draft.get('flags') or []
             iid, customer = str(draft.get('invoice_id') or '').strip(), str(draft.get('customer_name') or draft.get('customer_id') or '').strip()
             try:
                 amount = int(draft.get('amount'))
+                received = int(draft.get('received_amount') or 0)
                 issue, due = str(draft.get('issue_date') or ''), str(draft.get('due_date') or '')
                 date.fromisoformat(issue); date.fromisoformat(due)
             except (TypeError, ValueError):
                 raise ValueError('Each reviewed invoice needs whole-INR amount and ISO issue/due dates')
-            if not iid or not customer or amount <= 0 or due < issue:
+            paid_date = str(draft.get('paid_date') or '').strip() or None
+            currency = str(draft.get('currency') or 'INR').strip().upper()
+            segment = str(draft.get('segment') or 'small').strip().lower()
+            if paid_date:
+                try:
+                    date.fromisoformat(paid_date)
+                except ValueError as error:
+                    raise ValueError('Each paid date must use ISO format') from error
+            if not iid or not customer or amount <= 0 or received < 0 or received > amount or due < issue:
                 raise ValueError('Each reviewed invoice needs an ID, customer, positive amount, and valid dates')
+            if paid_date and (paid_date < issue or paid_date > business['as_of']):
+                raise ValueError('Paid dates must be between the invoice date and workspace observation date')
+            if received == amount and not paid_date:
+                raise ValueError('Fully received invoices require a paid date')
+            if received < amount and paid_date:
+                raise ValueError('A paid date is only accepted for a fully received invoice')
+            if currency != 'INR':
+                raise ValueError('Every reviewed invoice amount must be in INR')
+            if segment not in ('small', 'corporate', 'government'):
+                raise ValueError('Customer segment must be small, corporate, or government')
             if (iid in ids or (mode == 'append' and iid in existing_ids)) and not keep_duplicates:
                 raise ValueError(f'Invoice {iid} is a duplicate; explicitly keep duplicates only after review')
             ids.add(iid)
             cid = str(draft.get('customer_id') or customer).strip()
-            incoming.append(dict(id=iid, customer_id=cid, amount=amount, received_amount=int(draft.get('received_amount') or 0),
-                issue_date=issue, due_date=due, paid_date=draft.get('paid_date'), status='open'))
+            customer_candidates.setdefault(cid, dict(id=cid, name=customer, segment=segment))
+            incoming.append(dict(id=iid, customer_id=cid, amount=amount, received_amount=received,
+                issue_date=issue, due_date=due, paid_date=paid_date, status='paid' if received == amount else 'open'))
         customers = {customer['id']: customer for customer in business.get('customers', [])}
-        for item in incoming:
-            customers.setdefault(item['customer_id'], dict(id=item['customer_id'], name=item['customer_id'], segment='small'))
+        for cid, customer in customer_candidates.items():
+            customers.setdefault(cid, customer)
         if mode == 'replace':
             business['invoices'] = incoming
             business['customers'] = list(customers.values())

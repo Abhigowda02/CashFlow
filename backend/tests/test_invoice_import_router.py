@@ -31,3 +31,33 @@ def test_csv_preview_then_confirm_is_review_first(client):
     result = client.post('/api/invoices/commit', json={'rows': preview['rows'], 'mode': 'append', 'confirm_currency_inr': True})
     assert result.status_code == 200, result.text
     assert client.get('/api/invoices').json()[0]['id'] == 'Z-1'
+
+
+def test_csv_append_preserves_partly_paid_invoice_and_existing_records(client):
+    original = {
+        'filename': 'initial.csv',
+        'content_base64': base64.b64encode(
+            b'Invoice No,Customer Name,Invoice Date,Due Date,Invoice Amount\nOLD-1,Existing Customer,2026-09-01,2026-10-01,1000\n'
+        ).decode(),
+    }
+    initial = client.post('/api/invoices/preview', json=original).json()
+    assert client.post('/api/invoices/commit', json={'rows': initial['rows'], 'mode': 'append', 'confirm_currency_inr': True}).status_code == 200
+
+    raw = (
+        'invoice_id,customer_id,customer_name,segment,amount,issue_date,due_date,received_amount,paid_date,currency\n'
+        'NEW-1,C-NEW,New Customer,corporate,120000,2026-08-01,2026-09-01,35000,,INR\n'
+    ).encode()
+    preview = client.post('/api/invoices/preview', json={'filename': 'append.csv', 'content_base64': base64.b64encode(raw).decode()})
+    assert preview.status_code == 200, preview.text
+    row = preview.json()['rows'][0]
+    assert row['flags'] == []
+    assert row['customer_id'] == 'C-NEW'
+    assert row['received_amount'] == 35000
+    result = client.post('/api/invoices/commit', json={'rows': [row], 'mode': 'append', 'confirm_currency_inr': True})
+    assert result.status_code == 200, result.text
+    invoices = {invoice['id']: invoice for invoice in client.get('/api/invoices').json()}
+    assert set(invoices) == {'OLD-1', 'NEW-1'}
+    assert invoices['NEW-1']['received'] == 35000
+    assert invoices['NEW-1']['outstanding'] == 85000
+    assert invoices['NEW-1']['ledger_status'] == 'partly paid'
+    assert invoices['NEW-1']['customer_name'] == 'New Customer'

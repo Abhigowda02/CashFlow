@@ -97,5 +97,11 @@
 - **Open Issues**: None
 - **Tests**: Full suite `python -m pytest engine/tests ml/tests backend/tests -q` (289 passed), `python -m engine.check_contract` (PASS), `python shared/validate.py` (PASS), `frontend npm run build` (PASS)
 
+## P05 follow-up: append CSV invoices and shortfall sample
+- **Status**: DONE
+- **Files Changed**: `frontend/src/LedgerPage.tsx`, `frontend/public/sample_data/stress_test_shortfall.csv`, `sample_data/stress_test_shortfall.csv`, `backend/modules/invoice_mapper.py`, `backend/ledger.py`, `backend/tests/test_invoice_import_router.py`, `docs/FEATURE_STATUS.md`
+- **Open Issues**: The older replace-workspace import remains available only with an explicit replacement confirmation. CSV append is review-first and preserves existing cash, receipts, expenses, supplier bills and invoices.
+- **Tests**: append and ledger API tests (12 passed), `python -m engine.check_contract` (PASS), `frontend npm run build` (PASS). Full-suite run was started but did not return a completion summary within the command window.
+
 
 

@@ -37,6 +37,13 @@ export default function LedgerPage({ apiUrl, business, onChanged }: Props) {
   const [pdfMessage, setPdfMessage] = useState('');
   const [confirmPdfAppend, setConfirmPdfAppend] = useState(false);
   const [confirmPdfCurrency, setConfirmPdfCurrency] = useState(false);
+  const [csvAppendFile, setCsvAppendFile] = useState<File | null>(null);
+  const [csvAppendRows, setCsvAppendRows] = useState<any[]>([]);
+  const [csvAppendBusy, setCsvAppendBusy] = useState(false);
+  const [csvAppendError, setCsvAppendError] = useState('');
+  const [csvAppendMessage, setCsvAppendMessage] = useState('');
+  const [confirmCsvAppend, setConfirmCsvAppend] = useState(false);
+  const [confirmCsvCurrency, setConfirmCsvCurrency] = useState(false);
   const [name, setName] = useState(business.name);
   const [asOf, setAsOf] = useState(business.as_of);
   const [cash, setCash] = useState(business.opening_cash);
@@ -139,6 +146,47 @@ export default function LedgerPage({ apiUrl, business, onChanged }: Props) {
       : draft));
   }
 
+  async function previewCsvAppend(event: FormEvent) {
+    event.preventDefault();
+    if (!csvAppendFile) return;
+    setCsvAppendBusy(true); setCsvAppendError(''); setCsvAppendMessage('');
+    setCsvAppendRows([]); setConfirmCsvAppend(false); setConfirmCsvCurrency(false);
+    try {
+      if (csvAppendFile.size > 5_000_000) throw new Error('CSV must be smaller than 5 MB.');
+      const bytes = new Uint8Array(await csvAppendFile.arrayBuffer());
+      let binary = '';
+      for (let offset = 0; offset < bytes.length; offset += 8192) {
+        binary += String.fromCharCode(...bytes.subarray(offset, offset + 8192));
+      }
+      const result = await apiRequest<{rows: any[]; mapping: Record<string,string>; unmapped: string[]; saved: boolean}>(
+        `${apiUrl}/invoices/preview`,
+        { filename: csvAppendFile.name, content_base64: btoa(binary) },
+      );
+      setCsvAppendRows(result.rows);
+      const dupeCount = result.rows.filter((r: any) => r.flags?.includes('duplicate')).length;
+      if (dupeCount) setCsvAppendError(`${dupeCount} duplicate invoice(s) found. Remove duplicates or review them before adding.`);
+    } catch (e) { setCsvAppendError(e instanceof Error ? e.message : 'Could not preview this CSV'); }
+    finally { setCsvAppendBusy(false); }
+  }
+
+  async function commitCsvAppend() {
+    setCsvAppendBusy(true); setCsvAppendError(''); setCsvAppendMessage('');
+    try {
+      if (!confirmCsvAppend || !confirmCsvCurrency) throw new Error('Confirm both checkboxes before adding invoices.');
+      const nonDupeRows = csvAppendRows.filter((r: any) => !(r.flags || []).includes('duplicate'));
+      if (!nonDupeRows.length) throw new Error('All invoices are duplicates. Remove duplicate flags or upload a different file.');
+      const result = await apiRequest<{saved: boolean; invoice_count: number}>(
+        `${apiUrl}/invoices/commit`,
+        { rows: nonDupeRows, mode: 'append', confirm_currency_inr: true, keep_duplicates: false },
+      );
+      await onChanged();
+      setCsvAppendMessage(`Added ${result.invoice_count} invoice${result.invoice_count === 1 ? '' : 's'} to the existing workspace. Cash, receipts, expenses and supplier bills were preserved.`);
+      setCsvAppendRows([]); setCsvAppendFile(null);
+      setConfirmCsvAppend(false); setConfirmCsvCurrency(false);
+    } catch (e) { setCsvAppendError(e instanceof Error ? e.message : 'Could not add invoices'); }
+    finally { setCsvAppendBusy(false); }
+  }
+
   async function receive(event: FormEvent) {
     event.preventDefault(); setBusy(true); setError(''); setMessage('');
     try {
@@ -182,6 +230,13 @@ export default function LedgerPage({ apiUrl, business, onChanged }: Props) {
               href={`data:text/csv;charset=utf-8,${encodeURIComponent(template)}`}
             >
               📥 Blank CSV Template
+            </a>
+            <a
+              className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-900 shadow-sm transition hover:bg-amber-100"
+              download="stress_test_shortfall.csv"
+              href="/sample_data/stress_test_shortfall.csv"
+            >
+              📊 Sample Overdue Dataset (30 invoices)
             </a>
           </div>
         </div>
@@ -253,6 +308,39 @@ export default function LedgerPage({ apiUrl, business, onChanged }: Props) {
           <label className="flex items-start gap-2 text-xs leading-5"><input type="checkbox" checked={confirmPdfAppend} onChange={e => setConfirmPdfAppend(e.target.checked)} />I confirm these reviewed invoices should be added to the existing workspace. This does not replace my current records or update cash for historical receipts.</label>
           <button type="button" className="button-primary" disabled={pdfBusy || !pdfDrafts.length || !confirmPdfAppend || !confirmPdfCurrency || pdfDrafts.some(draft => draft.duplicate || business.invoices.some(invoice => invoice.id === draft.invoice_id.trim())) || pdfDrafts.some(draft => pdfDrafts.filter(other => other.invoice_id.trim() === draft.invoice_id.trim()).length > 1)} onClick={() => void applyPdfDrafts()}>{pdfBusy ? 'Adding reviewed invoices…' : `Add ${pdfDrafts.length} reviewed invoice${pdfDrafts.length === 1 ? '' : 's'}`}</button>
           <button type="button" className="button-secondary ml-2" disabled={pdfBusy} onClick={() => { setPdfDrafts([]); setConfirmPdfAppend(false); setConfirmPdfCurrency(false); setPdfError(''); }}>Cancel review</button>
+        </div>}
+      </section>}
+      {view === 'import' && <section className="panel-card max-w-4xl space-y-5 p-5 sm:p-6">
+        <div className="flex items-start gap-3">
+          <span className="kpi-icon driver-blue mt-0.5">📄</span>
+          <div><h2 className="font-semibold">Add invoices from CSV (append)</h2>
+            <p className="mt-1 text-xs leading-5 text-slate-500">Add invoices to your existing workspace without replacing any data. Your current cash, receipts, expenses, supplier bills and customer relationships are preserved. Duplicate invoice IDs are flagged.</p>
+          </div>
+        </div>
+        <form className="flex flex-col gap-3 sm:flex-row sm:items-end" onSubmit={previewCsvAppend}>
+          <label className="block min-w-0 flex-1 text-xs">CSV file with invoices to add, max 5 MB<input className="field-input mt-1" required type="file" accept=".csv" onChange={e => { setCsvAppendFile(e.target.files?.[0] ?? null); setCsvAppendRows([]); setCsvAppendError(''); setCsvAppendMessage(''); setConfirmCsvAppend(false); setConfirmCsvCurrency(false); }} /></label>
+          <button className="button-secondary shrink-0" disabled={csvAppendBusy || !csvAppendFile}>{csvAppendBusy && !csvAppendRows.length ? 'Reading CSV…' : 'Preview invoices'}</button>
+        </form>
+        {csvAppendError && <p role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm leading-5 text-amber-900">{csvAppendError}</p>}
+        {csvAppendMessage && <p role="status" className="rounded-xl bg-emerald-50 p-3 text-sm leading-5 text-emerald-800">{csvAppendMessage}</p>}
+        {csvAppendRows.length > 0 && <div className="space-y-4">
+          <div className="rounded-xl border border-indigo-100 bg-indigo-50/70 p-4 text-sm leading-6 text-indigo-950">
+            <strong>Append only:</strong> {csvAppendRows.length} invoice{csvAppendRows.length === 1 ? '' : 's'} found. Existing data is preserved.
+            {csvAppendRows.some((r: any) => r.flags?.includes('duplicate')) && <span className="ml-2 text-amber-800">({csvAppendRows.filter((r: any) => r.flags?.includes('duplicate')).length} flagged as duplicates and will be skipped)</span>}
+          </div>
+          <div className="overflow-x-auto"><table className="ledger-table"><thead><tr>{['Invoice ID', 'Customer', 'Amount', 'Issue date', 'Due date', 'Received', 'Flags'].map(h => <th key={h}>{h}</th>)}</tr></thead>
+            <tbody>{csvAppendRows.map((row: any, i: number) => <tr key={i} className={`border-t border-slate-100 ${row.flags?.includes('duplicate') ? 'bg-amber-50' : ''}`}>
+              <td className="p-2">{row.invoice_id}</td><td className="p-2">{row.customer_name || row.customer_id}</td>
+              <td className="p-2">{money(row.amount)}</td><td className="p-2">{row.issue_date}</td><td className="p-2">{row.due_date}</td>
+              <td className="p-2">{money(row.received_amount || 0)}</td>
+              <td className="p-2">{(row.flags || []).join(', ') || '—'}</td>
+            </tr>)}</tbody></table></div>
+          <label className="flex items-start gap-2 text-xs leading-5"><input type="checkbox" checked={confirmCsvCurrency} onChange={e => setConfirmCsvCurrency(e.target.checked)} />I reviewed the amounts and confirm every invoice amount is in INR.</label>
+          <label className="flex items-start gap-2 text-xs leading-5"><input type="checkbox" checked={confirmCsvAppend} onChange={e => setConfirmCsvAppend(e.target.checked)} />I confirm these invoices should be added to the existing workspace. This does not replace current records.</label>
+          <div className="flex gap-2">
+            <button type="button" className="button-primary" disabled={csvAppendBusy || !csvAppendRows.length || !confirmCsvAppend || !confirmCsvCurrency} onClick={() => void commitCsvAppend()}>{csvAppendBusy ? 'Adding invoices…' : `Add ${csvAppendRows.filter((r: any) => !(r.flags || []).includes('duplicate')).length} invoice${csvAppendRows.filter((r: any) => !(r.flags || []).includes('duplicate')).length === 1 ? '' : 's'}`}</button>
+            <button type="button" className="button-secondary" disabled={csvAppendBusy} onClick={() => { setCsvAppendRows([]); setConfirmCsvAppend(false); setConfirmCsvCurrency(false); setCsvAppendError(''); }}>Cancel review</button>
+          </div>
         </div>}
       </section>}
       {view === 'receipts' && <form className="panel-card max-w-xl space-y-4 p-6" onSubmit={receive}>
