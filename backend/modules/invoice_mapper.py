@@ -9,11 +9,13 @@ import re
 from datetime import datetime
 from typing import Any
 
-FIELDS = ("invoice_id", "customer_id", "customer_name", "issue_date", "due_date", "amount", "received_amount", "paid_date", "segment", "currency", "balance", "gstin", "place_of_supply")
+FIELDS = ("invoice_id", "customer_id", "customer_name", "email", "phone", "issue_date", "due_date", "amount", "received_amount", "paid_date", "segment", "currency", "balance", "gstin", "place_of_supply")
 ALIASES = {
     "invoice_id": ("invoice id", "voucher no", "invoice no", "invoice number", "bill no", "bill number", "document no"),
     "customer_id": ("customer id", "party id", "buyer id", "client id"),
     "customer_name": ("party name", "customer name", "customer", "party", "buyer name"),
+    "email": ("email", "email address", "customer email", "party email"),
+    "phone": ("phone", "mobile", "mobile number", "phone number", "customer phone"),
     "issue_date": ("date", "issue date", "invoice date", "bill date", "document date"),
     "due_date": ("due date", "payment due date"),
     "amount": ("amount", "total", "gross total", "invoice amount", "total amount", "total invoice value"),
@@ -78,6 +80,8 @@ def parse_rows(rows: list[dict[str, object]], mapping: dict[str, str], *, defaul
         paid_date = _date(get("paid_date")) if mapping.get("paid_date") else None
         invoice_id, customer = str(get("invoice_id")).strip(), str(get("customer_name")).strip()
         customer_id = str(get("customer_id")).strip() or customer
+        email = str(get("email")).strip() if mapping.get("email") else ""
+        phone = str(get("phone")).strip() if mapping.get("phone") else ""
         segment = str(get("segment")).strip().lower() or "small"
         currency = str(get("currency")).strip().upper() or "INR"
         flags: list[str] = []
@@ -94,7 +98,7 @@ def parse_rows(rows: list[dict[str, object]], mapping: dict[str, str], *, defaul
         if not due and issue:
             due = issue
             flags.append("missing_due_date")
-        proposals.append({"row_number": number, "invoice_id": invoice_id, "customer_id": customer_id, "customer_name": customer,
+        proposals.append({"row_number": number, "invoice_id": invoice_id, "customer_id": customer_id, "customer_name": customer, "email": email, "phone": phone,
             "issue_date": issue, "due_date": due, "amount": amount, "currency": currency, "segment": segment,
             "received_amount": received, "paid_date": paid_date, "flags": flags, "source": source})
     return proposals

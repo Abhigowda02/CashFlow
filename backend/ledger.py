@@ -148,6 +148,8 @@ def import_invoices(filename, content, name, as_of, opening_cash, safety_floor, 
         if segment not in ['small', 'corporate', 'government']:
             raise ValueError('Segment must be small, corporate, or government')
         customer = dict(id=cid, name=row.get('customer_name', '').strip() or cid, segment=segment)
+        if row.get('email', '').strip(): customer['email'] = row['email'].strip()
+        if row.get('phone', '').strip(): customer['phone'] = row['phone'].strip()
         if cid in customers and customers[cid] != customer:
             raise ValueError(f'Conflicting customer details for {cid}')
         customers[cid] = customer
@@ -352,7 +354,10 @@ def commit_reviewed_invoices(rows, mode, business_id, keep_duplicates=False):
                 raise ValueError(f'Invoice {iid} is a duplicate; explicitly keep duplicates only after review')
             ids.add(iid)
             cid = str(draft.get('customer_id') or customer).strip()
-            customer_candidates.setdefault(cid, dict(id=cid, name=customer, segment=segment))
+            contact = dict(id=cid, name=customer, segment=segment)
+            if str(draft.get('email') or '').strip(): contact['email'] = str(draft['email']).strip()
+            if str(draft.get('phone') or '').strip(): contact['phone'] = str(draft['phone']).strip()
+            customer_candidates.setdefault(cid, contact)
             incoming.append(dict(id=iid, customer_id=cid, amount=amount, received_amount=received,
                 issue_date=issue, due_date=due, paid_date=paid_date, status='paid' if received == amount else 'open'))
         customers = {customer['id']: customer for customer in business.get('customers', [])}

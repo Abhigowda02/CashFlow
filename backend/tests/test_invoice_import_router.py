@@ -44,8 +44,8 @@ def test_csv_append_preserves_partly_paid_invoice_and_existing_records(client):
     assert client.post('/api/invoices/commit', json={'rows': initial['rows'], 'mode': 'append', 'confirm_currency_inr': True}).status_code == 200
 
     raw = (
-        'invoice_id,customer_id,customer_name,segment,amount,issue_date,due_date,received_amount,paid_date,currency\n'
-        'NEW-1,C-NEW,New Customer,corporate,120000,2026-08-01,2026-09-01,35000,,INR\n'
+        'invoice_id,customer_id,customer_name,email,phone,segment,amount,issue_date,due_date,received_amount,paid_date,currency\n'
+        'NEW-1,C-NEW,New Customer,new@example.com,+919876543210,corporate,120000,2026-08-01,2026-09-01,35000,,INR\n'
     ).encode()
     preview = client.post('/api/invoices/preview', json={'filename': 'append.csv', 'content_base64': base64.b64encode(raw).decode()})
     assert preview.status_code == 200, preview.text
@@ -61,3 +61,6 @@ def test_csv_append_preserves_partly_paid_invoice_and_existing_records(client):
     assert invoices['NEW-1']['outstanding'] == 85000
     assert invoices['NEW-1']['ledger_status'] == 'partly paid'
     assert invoices['NEW-1']['customer_name'] == 'New Customer'
+    from backend import ledger
+    customer = next(item for item in ledger.load_business(client.business_id)['customers'] if item['id'] == 'C-NEW')
+    assert customer['email'] == 'new@example.com' and customer['phone'] == '+919876543210'
