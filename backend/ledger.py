@@ -53,6 +53,12 @@ def save_business(business, business_id):
         connection.execute(delete(db.receipts).where(db.receipts.c.business_id == business_id))
 
 
+def save_workspace_payload(business, business_id):
+    """Persist an existing tenant workspace without changing its receipt log."""
+    with db.transaction() as connection:
+        connection.execute(update(db.workspaces).where(db.workspaces.c.id == business_id).values(payload=json.dumps(business)))
+
+
 def update_plan(business, settings, business_id):
     with db.transaction() as connection:
         row = connection.execute(select(db.workspaces.c.payload).where(db.workspaces.c.id == business_id).with_for_update()).one()

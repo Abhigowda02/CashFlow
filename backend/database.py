@@ -24,6 +24,21 @@ receipts = Table('business_receipts', metadata,
     Column('business_id', ForeignKey('business_workspaces.id'), primary_key=True),
     Column('id', String(100), primary_key=True), Column('invoice_id', String(200), nullable=False),
     Column('amount', BigInteger, nullable=False), Column('date', String(10), nullable=False))
+bank_events = Table('bank_events', metadata,
+    Column('business_id', ForeignKey('business_workspaces.id'), primary_key=True),
+    Column('event_id', String(100), primary_key=True), Column('payload', Text, nullable=False),
+    Column('created_at', String(40), nullable=False))
+payments = Table('payment_reviews', metadata,
+    Column('business_id', ForeignKey('business_workspaces.id'), primary_key=True),
+    Column('id', String(100), primary_key=True), Column('event_id', String(100), nullable=False),
+    Column('invoice_id', String(200), nullable=True), Column('amount', BigInteger, nullable=False),
+    Column('decision', String(20), nullable=False), Column('status', String(30), nullable=False),
+    Column('fraud_score', Integer, nullable=False), Column('fraud_reasons', Text, nullable=False),
+    Column('payer_name', String(200), nullable=True), Column('created_at', String(40), nullable=False),
+    Column('reviewed_at', String(40), nullable=True))
+merchant_accounts = Table('merchant_accounts', metadata,
+    Column('account', String(100), primary_key=True),
+    Column('business_id', ForeignKey('business_workspaces.id'), nullable=False, unique=True))
 scenarios = Table('business_scenarios', metadata,
     Column('business_id', ForeignKey('business_workspaces.id'), primary_key=True),
     Column('id', String(36), primary_key=True), Column('name', String(120), nullable=False),

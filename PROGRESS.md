@@ -103,5 +103,11 @@
 - **Open Issues**: The older replace-workspace import remains available only with an explicit replacement confirmation. CSV append is review-first and preserves existing cash, receipts, expenses, supplier bills and invoices.
 - **Tests**: append and ledger API tests (12 passed), `python -m engine.check_contract` (PASS), `frontend npm run build` (PASS). Full-suite run was started but did not return a completion summary within the command window.
 
+## P05 follow-up: mock-bank fraud review
+- **Status**: DONE
+- **Files Changed**: `backend/routers/bank_webhooks.py`, `backend/modules/fraud_gateway.py`, `fraud_system.py`, payment tables, payment-review UI, tests and environment documentation.
+- **Open Issues**: This is a signed mock-bank integration only; no real bank/payment gateway is connected.
+- **Tests**: webhook tests (2 passed), `python -m engine.check_contract` (PASS), frontend production build (PASS).
+
 
 

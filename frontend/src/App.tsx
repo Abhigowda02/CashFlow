@@ -39,6 +39,7 @@ import NotificationCenter from './NotificationCenter';
 import CollectionsPanel from './CollectionsPanel';
 import ExpensesPage from './ExpensesPage';
 import ScenarioPlanner from './ScenarioPlanner';
+import PaymentReviewPage from './PaymentReviewPage';
 import { type PlannerDraft } from './scenarioLogic';
 import { API_BASE, apiRequest, type Account } from './api';
 import { type PlanBusiness } from './WorkspacePlan';
@@ -114,7 +115,7 @@ type Action = {
   runway_days_gained: number;
 };
 
-type TabId = "dashboard" | "forecast" | "simulator" | "actions" | "ledger" | "customers" | "reminders" | "expenses";
+type TabId = "dashboard" | "forecast" | "simulator" | "actions" | "ledger" | "customers" | "reminders" | "expenses" | "payments";
 
 const tabs: { id: TabId; label: string; icon: LucideIcon }[] = [
   { id: "dashboard", label: "Overview", icon: LayoutDashboard },
@@ -122,6 +123,7 @@ const tabs: { id: TabId; label: string; icon: LucideIcon }[] = [
   { id: "customers", label: "Customers", icon: Users },
   { id: "reminders", label: "Payment reminders", icon: BellRing },
   { id: "expenses", label: "Expenses & obligations", icon: CalendarDays },
+  { id: "payments", label: "Payment review", icon: Banknote },
   { id: "forecast", label: "Cash forecast", icon: TrendingDown },
   { id: "simulator", label: "Scenario planner", icon: Sparkles },
   { id: "actions", label: "Recommended actions", icon: Check },
@@ -519,6 +521,7 @@ function App({ account, onSignout }: { account: Account; onSignout: () => Promis
           {activeTab === 'customers' && <CustomersPage apiUrl={API_URL} />}
           {activeTab === 'reminders' && <RemindersPage apiUrl={API_URL} />}
           {activeTab === 'expenses' && <ExpensesPage apiUrl={API_URL} business={business} onChanged={() => loadData()} />}
+          {activeTab === 'payments' && <PaymentReviewPage apiUrl={API_URL} />}
           {activeTab === "dashboard" && (
             <Dashboard
               business={business}
