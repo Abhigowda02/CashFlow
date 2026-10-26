@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 from datetime import datetime, timezone
 from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException
@@ -178,6 +179,16 @@ def get_queue(user: auth.Account = Depends(auth.require_user)):
             "created_at": m["created_at"],
             "sent_at": m.get("sent_at"),
         })
+    if os.environ.get('AUTO_REMINDERS', 'false').lower() in {'1', 'true', 'yes'}:
+        for reminder in result:
+            # Automatic delivery is deliberately limited to ordinary email reminders.
+            # Legal drafts and phone-link channels always remain in the owner queue.
+            if reminder['status'] == 'draft' and reminder['channel'] == 'email' and reminder['rung'] < 5 and reminder['recipient']:
+                approve_reminder(reminder['id'], user)
+                try:
+                    send_reminder(reminder['id'], ReminderSendPayload(), user)
+                except HTTPException:
+                    pass
     return result
 
 
@@ -266,7 +277,8 @@ def send_reminder(
             raise HTTPException(404, "Reminder not found")
         rem = dict(row._mapping)
 
-    if rem["status"] != "approved":
+    automatic = os.environ.get('AUTO_REMINDERS', 'false').lower() in {'1', 'true', 'yes'}
+    if rem["status"] != "approved" and not (automatic and rem["status"] == "draft" and rem["channel"] == "email" and rem["rung"] < 5):
         raise HTTPException(400, "Review and approve the draft reminder before sending.")
 
     # Rung 5 requires explicit confirmation
