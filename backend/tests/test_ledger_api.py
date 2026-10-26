@@ -43,6 +43,18 @@ def test_import_and_persistence(client, extension):
     assert summary['concentration'][0]['share'] == 1
 
 
+def test_import_accepts_common_export_headers_and_contact_fields(client):
+    rows = pd.DataFrame([dict(**{'Invoice No': 'V-1', 'Party Name': 'Vendor Customer', 'Invoice Date': '2026-09-01',
+                                  'Due Date': '2026-10-01', 'Invoice Amount': 1000, 'Email Address': 'vendor@example.com',
+                                  'Mobile Number': '+919876543210'})])
+    raw = rows.to_csv(index=False).encode()
+    response = client.post('/api/import', json=dict(filename='export.csv', content_base64=base64.b64encode(raw).decode(),
+        name='Test business', as_of='2026-10-24', opening_cash=0, safety_floor=0, declared_currency='INR'))
+    assert response.status_code == 200, response.text
+    customer = ledger.load_business(client.business_id)['customers'][0]
+    assert customer['email'] == 'vendor@example.com' and customer['phone'] == '+919876543210'
+
+
 def test_receipts_are_idempotent_and_update_cash(client):
     assert client.post('/api/import', json=payload()).status_code == 200
     receipt = dict(invoice_id='I1', receipt_id='unique-payment', amount=300, date='2026-10-24')

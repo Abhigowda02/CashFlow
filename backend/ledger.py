@@ -10,6 +10,7 @@ from sqlalchemy import delete, insert, select, update
 from datetime import date
 from . import clock, database as db
 from .gap import simulate_gap_cash
+from .modules import invoice_mapper
 
 def load_business(business_id):
     with db.engine().connect() as connection:
@@ -98,9 +99,17 @@ def import_invoices(filename, content, name, as_of, opening_cash, safety_floor, 
         table = pd.read_excel(io.BytesIO(payload), dtype=str, keep_default_na=False, engine='openpyxl')
     else:
         raise ValueError('Choose a CSV or .xlsx invoice file')
+    canonical = {'invoice_id', 'customer_id', 'customer_name', 'email', 'phone', 'issue_date', 'due_date',
+                 'amount', 'received_amount', 'paid_date', 'segment', 'currency'}
+    suggested = invoice_mapper.map_columns([str(column) for column in table.columns])['mapping']
+    rename = {source: target for target, source in suggested.items() if target not in table.columns and source not in canonical}
+    if rename:
+        table = table.rename(columns=rename)
+    if 'customer_id' not in table.columns and 'customer_name' in table.columns:
+        table['customer_id'] = table['customer_name']
     required = {'invoice_id', 'customer_id', 'amount', 'issue_date', 'due_date'}
     if not required.issubset(table.columns):
-        raise ValueError('Use the invoice template. Required columns: ' + ', '.join(sorted(required)))
+        raise ValueError('Use the invoice template or common invoice headers. Required fields: ' + ', '.join(sorted(required)))
     if len(table) > 2000 or table.empty:
         raise ValueError('Import between 1 and 2,000 invoices per workspace')
     currencies = table['currency'].str.strip().str.upper() if 'currency' in table else pd.Series('', index=table.index)
