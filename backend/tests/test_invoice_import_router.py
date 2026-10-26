@@ -14,6 +14,16 @@ def test_mapper_recognises_tally_headers_and_flags_missing_values():
     assert rows[0]['flags'] == []
 
 
+def test_mapper_derives_payment_state_from_outstanding_balance():
+    headers = ['Invoice No', 'Customer Name', 'Invoice Date', 'Due Date', 'Invoice Amount', 'Outstanding']
+    mapping = map_columns(headers)['mapping']
+    rows = parse_rows([
+        {'Invoice No': 'P-1', 'Customer Name': 'Maya', 'Invoice Date': '2026-09-01', 'Due Date': '2026-10-01', 'Invoice Amount': '100000', 'Outstanding': '25000'},
+    ], mapping)
+    assert rows[0]['received_amount'] == 75000
+    assert rows[0]['flags'] == []
+
+
 def test_gst_parser_returns_clear_error_without_crashing():
     result = parse_gst_einvoice('{bad json')
     assert result['rows'] == []
