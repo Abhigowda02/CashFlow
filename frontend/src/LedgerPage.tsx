@@ -202,7 +202,7 @@ export default function LedgerPage({ apiUrl, business, onChanged }: Props) {
   const filtered = (ledger?.invoices ?? []).filter(invoice =>
     `${invoice.id} ${invoice.customer_name} ${invoice.ledger_status}`.toLowerCase().includes(search.toLowerCase()));
   const open = ledger?.invoices.filter(invoice => invoice.outstanding > 0) ?? [];
-  const template = 'invoice_id,customer_id,customer_name,segment,amount,issue_date,due_date,status,received_amount,paid_date,currency\nINV-1,C1,Example Customer,small,10000,2026-10-01,2026-10-20,open,2000,,INR\n';
+  const template = 'invoice_id,customer_id,customer_name,email,phone,segment,amount,issue_date,due_date,status,received_amount,paid_date,currency\nINV-1,C1,Example Customer,customer@example.com,+919876543210,small,10000,2026-10-01,2026-10-20,open,2000,,INR\n';
   return <div className="space-y-5">
     <div><p className="eyebrow">CASH OPERATIONS</p><h1 className="mt-1.5 text-[28px] font-semibold tracking-tight">Invoices & cash</h1>
       <p className="mt-2 text-sm text-slate-500">Track what is owed, record what arrives, and keep your plan up to date.</p></div>
